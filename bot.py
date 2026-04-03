@@ -1,7 +1,7 @@
 import requests
 import time
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timezone, timedelta
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -50,6 +50,7 @@ def get_updates(offset=None):
 
 def get_odds(sport_key):
     try:
+        now = datetime.now(timezone.utc)
         url = "https://api.the-odds-api.com/v4/sports/" + sport_key + "/odds"
         params = {
             "apiKey": ODDS_API_KEY,
@@ -57,7 +58,8 @@ def get_odds(sport_key):
             "markets": "h2h,totals,spreads",
             "oddsFormat": "decimal",
             "bookmakers": ",".join(BOOKMAKERS),
-            "commenceTimeTo": (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
+            "commenceTimeFrom": (now - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "commenceTimeTo": (now + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         r = requests.get(url, params=params, timeout=10)
         if r.status_code == 200:
@@ -139,37 +141,26 @@ def build_prompt(home, away, sport, all_markets):
     prompt += "1. FORME RECENTE (5 a 10 derniers matchs)\n"
     prompt += "- Resultats + performances globales\n"
     prompt += "- Tendances : progression / stagnation / chute\n"
-    prompt += "- Stats cles : xG, xGA, buts marques/encaisses, occasions creees\n"
-    prompt += "- Lecture factuelle de la dynamique reelle\n\n"
+    prompt += "- Stats cles : xG, xGA, buts marques/encaisses\n\n"
     prompt += "2. H2H CONFRONTATIONS DIRECTES\n"
-    prompt += "- Dynamiques reellement significatives uniquement\n"
-    prompt += "- Renversements de tendance\n"
-    prompt += "- Elements recurrents d un match a l autre\n"
+    prompt += "- Dynamiques significatives uniquement\n"
     prompt += "- Si aucune tendance : Aucune tendance H2H exploitable\n\n"
     prompt += "3. STYLE DE JEU + FORCES ET FAIBLESSES\n"
-    prompt += "Pour chaque equipe :\n"
     prompt += "- Systeme tactique principal\n"
-    prompt += "- Points forts / Points faibles\n"
-    prompt += "- Zones ou phases qui peuvent peser sur le match\n\n"
+    prompt += "- Points forts / Points faibles\n\n"
     prompt += "4. ABSENCES ET IMPACT REEL\n"
     prompt += "- Blesses / suspendus / incertains\n"
-    prompt += "- Impact reel sur le jeu\n"
-    prompt += "- Si inconnu : Aucune source fiable disponible sur ce point\n\n"
+    prompt += "- Si inconnu : Aucune source fiable disponible\n\n"
     prompt += "5. CALENDRIER ET CONTEXTE PHYSIQUE\n"
     prompt += "- Charge des matchs recents\n"
     prompt += "- Risques de rotation, fatigue probable\n\n"
     prompt += "6. ENJEUX DU MATCH\n"
     prompt += "- Situation au classement\n"
-    prompt += "- Objectifs : titre, Europe, maintien, derby\n"
     prompt += "- Niveau de motivation\n\n"
     prompt += "7. STATISTIQUES AVANCEES\n"
-    prompt += "- xG, xGA, tirs cadres, occasions franches\n"
-    prompt += "- Clean sheets, buts concedes\n\n"
+    prompt += "- xG, xGA, tirs cadres, clean sheets\n\n"
     prompt += "8. RED FLAGS\n"
-    prompt += "- Match sans enjeu reel\n"
-    prompt += "- Dynamique instable\n"
-    prompt += "- Rotation probable\n"
-    prompt += "- Fatigue ou gros match avant ou apres\n\n"
+    prompt += "- Match sans enjeu, rotation probable, fatigue\n\n"
     prompt += "9. SYNTHESE FINALE ET PRONOSTICS\n"
     prompt += "- 4 a 6 elements decisifs\n"
     prompt += "- Pour CHAQUE cote listee :\n"
@@ -178,11 +169,9 @@ def build_prompt(home, away, sport, all_markets):
     prompt += "  Recommandation : JOUER ou EVITER\n"
     prompt += "- TOP 3 paris classes par ordre de preference\n"
     prompt += "- Classification : GOLD 75pct+ / SILVER 65-74pct / NO BET\n\n"
-    prompt += "REGLES ABSOLUES :\n"
-    prompt += "- Zero blabla, zero supposition\n"
-    prompt += "- Donnees verifiables uniquement\n"
-    prompt += "- Si info absente : Aucune source fiable disponible sur ce point\n"
-    prompt += "- Rapport 800 a 1200 mots"
+    prompt += "REGLES : Zero blabla. Zero supposition. Donnees uniquement.\n"
+    prompt += "Si info absente : Aucune source fiable disponible.\n"
+    prompt += "Rapport 800 a 1200 mots."
     return prompt
 
 
@@ -248,7 +237,11 @@ def analyse_du_jour(chat_id):
         "-------------------\n"
         "<b>ANALYSE ORACLE :</b>\n\n"
     )
-    footer = "\n-------------------\nFiabilite: <b>" + str(reliability) + "%</b>\nClassification: <b>" + classification + "</b>"
+    footer = (
+        "\n-------------------\n"
+        "Fiabilite: <b>" + str(reliability) + "%</b>\n"
+        "Classification: <b>" + classification + "</b>"
+    )
     full_msg = header + analyse + footer
     if len(full_msg) > 4096:
         send_telegram(chat_id, header + analyse[:3000] + "\n<i>...suite ci-dessous</i>")
