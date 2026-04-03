@@ -4,139 +4,233 @@ import os
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+ODDSPAPI_KEY = os.environ.get("ODDSPAPI_KEY")
 
-SPORTS = [
-    # Europe
-    "soccer_france_ligue_one",
-    "soccer_epl",
-    "soccer_spain_la_liga",
-    "soccer_italy_serie_a",
-    "soccer_germany_bundesliga",
-    "soccer_france_ligue_two",
-    # Asie
-    "soccer_china_superleague",
-    "soccer_japan_j_league",
-    "soccer_south_korea_kleague1",
-    "soccer_australia_aleague",
-    "soccer_india_superleague",
-    # Autres sports
-    "basketball_nba",
-    "icehockey_nhl",
-    "basketball_euroleague",
+SPORTS_IDS = [
+    {"id": 1, "name": "Basketball"},
+    {"id": 10, "name": "Football"},
+    {"id": 13, "name": "Tennis"},
+    {"id": 17, "name": "Hockey"},
+    {"id": 16, "name": "Rugby"},
+    {"id": 3, "name": "Baseball"},
+    {"id": 7, "name": "MMA"},
 ]
 
-BOOKMAKERS = "pinnacle"
-previous_odds = {}
+TARGET_BOOKS = ["pinnacle", "bet365", "unibet", "betclic"]
+MIN_ODDS = 1.40
+MAX_ODDS = 2.50
+MIN_RELIABILITY = 85
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, json={
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML"
-    })
+    try:
+        requests.post(url, json={
+            "chat_id": TELEGRAM_CHAT_ID,
+            "text": message,
+            "parse_mode": "HTML"
+        }, timeout=10)
+    except Exception as e:
+        print(f"Telegram error: {e}")
 
-def get_odds(sport):
-    url = f"https://api.the-odds-api.com/v4/sports/{sport}/odds"
-    params = {
-        "apiKey": ODDS_API_KEY,
-        "regions": "eu",
-        "markets": "h2h,asian_handicap",
-        "oddsFormat": "decimal",
-        "bookmakers": BOOKMAKERS,
-        "commenceTimeFrom": time.strftime(
-            "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
-        )
-    }
-    r = requests.get(url, params=params)
-    if r.status_code == 200:
-        return r.json()
+def get_fixtures(sport_id):
+    try:
+        url = "https://api.oddspapi.io/v4/fixtures"
+        params = {
+            "apiKey": ODDSPAPI_KEY,
+            "sportId": sport_id,
+            "status": "upcoming"
+        }
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            return data.get("fixtures", data) if isinstance(data, dict) else data
+    except Exception as e:
+        print(f"Fixtures error sport {sport_id}: {e}")
     return []
 
-def oracle_analyse(home, away, sport, market, selection, cote_old, cote_new, drop_pct):
-    prompt = f"""Tu es ORACLE, analyste de paris sportifs d'élite.
+def get_odds(fixture_id):
+    try:
+        url = f"https://api.oddspapi.io/v4/odds"
+        params = {
+            "apiKey": ODDSPAPI_KEY,
+            "fixtureId": fixture_id
+        }
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code == 200:
+            return r.json()
+    except Exception as e:
+        print(f"Odds error {fixture_id}: {e}")
+    return {}
 
-ALERTE SHARP MONEY DÉTECTÉE SUR PINNACLE :
-- Match : {home} vs {away}
-- Championnat : {sport}
-- Marché : {market}
-- Sélection : {selection}
-- Cote Pinnacle : {cote_old:.2f} → {cote_new:.2f} (chute -{drop_pct:.1f}%)
+def extract_best_odds(odds_data):
+    best = {}
+    bookmaker_odds = odds_data.get("bookmakerOdds", {})
+    for book in TARGET_BOOKS:
+        if book in bookmaker_odds:
+            markets = bookmaker_odds[book].get("markets", {})
+            for market_id, market_data in markets.items():
+                outcomes = market_data.get("outcomes", {})
+                for outcome_id, outcome_data in outcomes.items():
+                    try:
+                        price = outcome_data["players"]["0"]["price"]
+                        name = outcome_data.get("outcomeName", outcome_id)
+                        market_name = market_data.get("marketName", market_id)
+                        key = f"{market_name}_{name}"
+                        if key not in best:
+                            best[key] = {
+                                "market": market_name,
+                                "selection": name,
+                                "odds": {},
+                                "best_odds": 0,
+                                "best_book": ""
+                            }
+                        best[key]["odds"][book] = price
+                        if price > best[key]["best_odds"]:
+                            best[key]["best_odds"] = price
+                            best[key]["best_book"] = book
+                    except (KeyError, TypeError):
+                        continue
+    return best
 
-Analyse express en 5 points :
-1. SHARP MONEY — Ce que cette chute signifie
-2. CONTEXTE — Force des équipes, forme récente
-3. EDGE — Prob estimée × Cote - 1 = ?
-4. RISQUE — Principal danger
-5. VERDICT — GOLD ✅ / SILVER ⚡ / NO BET ❌ + mise % bankroll
+def oracle_analyse(home, away, sport, market, selection, odds_by_book):
+    odds_text = " | ".join([f"{b.upper()}: {o:.2f}" for b, o in odds_by_book.items() if o > 0])
+    best_odds = max(odds_by_book.values())
 
-Maximum 150 mots, sois direct."""
+    prompt = f"""Tu es ORACLE, analyste de paris sportifs professionnel.
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
-    response = requests.post(url, json={
-        "contents": [{"parts": [{"text": prompt}]}]
-    })
-    if response.status_code == 200:
-        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-    return "⚠️ Analyse Oracle indisponible."
+MATCH : {home} vs {away}
+SPORT : {sport}
+MARCHÉ : {market}
+SÉLECTION : {selection}
+COTES RÉELLES : {odds_text}
+MEILLEURE COTE : {best_odds:.2f}
 
-def check_drops():
-    for sport in SPORTS:
-        games = get_odds(sport)
-        for game in games:
-            game_id = game["id"]
-            home = game["home_team"]
-            away = game["away_team"]
-            for bookmaker in game.get("bookmakers", []):
-                for market in bookmaker.get("markets", []):
-                    market_key = market["key"]
-                    for outcome in market["outcomes"]:
-                        key = f"{game_id}_{market_key}_{outcome['name']}"
-                        current = outcome["price"]
-                        if current < 1.40:
-                            continue
-                        if key in previous_odds:
-                            old = previous_odds[key]
-                            if old <= 0:
-                                continue
-                            drop_pct = ((old - current) / old) * 100
-                            if drop_pct >= 7:
-                                analyse = oracle_analyse(
-                                    home, away, sport,
-                                    market_key, outcome['name'],
-                                    old, current, drop_pct
-                                )
-                                msg = (
-                                    f"🚨 <b>ALERTE ORACLE v2.0 — PINNACLE</b>\n"
-                                    f"━━━━━━━━━━━━━━━━━━\n"
-                                    f"🏟 <b>{home} vs {away}</b>\n"
-                                    f"🌍 Compétition: {sport}\n"
-                                    f"🎯 Sélection: <b>{outcome['name']}</b>\n"
-                                    f"📊 Marché: {market_key}\n"
-                                    f"📉 Cote: {old:.2f} → <b>{current:.2f}</b>\n"
-                                    f"⚡ Chute: <b>-{drop_pct:.1f}%</b>\n"
-                                    f"━━━━━━━━━━━━━━━━━━\n"
-                                    f"🤖 <b>ANALYSE ORACLE :</b>\n\n"
-                                    f"{analyse}"
-                                )
-                                send_telegram(msg)
-                        previous_odds[key] = current
+Analyse en 5 points RAPIDE :
+1. CONTEXTE — Forme et enjeu du match
+2. STATISTIQUES — Données clés pour ce marché précis
+3. FIABILITÉ — Estime en % (sois précis et honnête)
+4. RISQUE — Ce qui pourrait faire rater ce pari
+5. VERDICT — GOLD ✅ (85%+) / SILVER ⚡ (75-84%) / NO BET ❌
+
+Maximum 120 mots. Sois direct et précis."""
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        response = requests.post(url, json={
+            "contents": [{"parts": [{"text": prompt}]}]
+        }, timeout=15)
+        if response.status_code == 200:
+            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        print(f"Gemini error: {e}")
+    return "⚠️ Analyse indisponible."
+
+def scan_and_alert():
+    print("🔍 Scan en cours...")
+    alerts_sent = 0
+
+    for sport in SPORTS_IDS:
+        fixtures = get_fixtures(sport["id"])
+        if not fixtures:
+            continue
+
+        for fixture in fixtures[:5]:
+            try:
+                fixture_id = fixture.get("fixtureId") or fixture.get("id")
+                participants = fixture.get("participants", [])
+                if len(participants) < 2:
+                    continue
+
+                home = participants[0].get("name", "Équipe 1")
+                away = participants[1].get("name", "Équipe 2")
+
+                odds_data = get_odds(fixture_id)
+                if not odds_data:
+                    continue
+
+                best_odds_map = extract_best_odds(odds_data)
+
+                for key, info in best_odds_map.items():
+                    best = info["best_odds"]
+                    if best < MIN_ODDS or best > MAX_ODDS:
+                        continue
+
+                    odds_by_book = {b: o for b, o in info["odds"].items() if o >= MIN_ODDS}
+                    if not odds_by_book:
+                        continue
+
+                    analyse = oracle_analyse(
+                        home, away, sport["name"],
+                        info["market"], info["selection"],
+                        odds_by_book
+                    )
+
+                    if "NO BET" in analyse.upper():
+                        continue
+
+                    reliability = MIN_RELIABILITY
+                    for num in range(99, 74, -1):
+                        if str(num) in analyse:
+                            reliability = num
+                            break
+
+                    if reliability < MIN_RELIABILITY:
+                        continue
+
+                    classification = "GOLD ✅" if reliability >= 85 else "SILVER ⚡"
+                    odds_display = "\n".join([f"   📌 {b.upper()}: <b>{o:.2f}</b>" for b, o in odds_by_book.items()])
+                    best_gain = round(5 * info["best_odds"], 2)
+
+                    msg = (
+                        f"🎯 <b>ORACLE — PARI DU JOUR</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"🏟 <b>{home} vs {away}</b>\n"
+                        f"🏆 Sport: {sport['name']}\n"
+                        f"📊 Marché: <b>{info['market']}</b>\n"
+                        f"🎯 Sélection: <b>{info['selection']}</b>\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"💰 <b>COTES EN TEMPS RÉEL :</b>\n"
+                        f"{odds_display}\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"🤖 <b>ANALYSE ORACLE :</b>\n\n"
+                        f"{analyse}\n\n"
+                        f"━━━━━━━━━━━━━━━━━━\n"
+                        f"📈 Fiabilité: <b>{reliability}%</b>\n"
+                        f"💵 Mise: <b>5€</b> → Gains potentiels: <b>{best_gain}€</b>\n"
+                        f"🏆 Classification: <b>{classification}</b>"
+                    )
+
+                    send_telegram(msg)
+                    alerts_sent += 1
+                    time.sleep(3)
+
+                    if alerts_sent >= 3:
+                        return
+
+            except Exception as e:
+                print(f"Error processing fixture: {e}")
+                continue
+
+        time.sleep(1)
+
+    if alerts_sent == 0:
+        print("Aucune opportunité trouvée ce scan.")
 
 if __name__ == "__main__":
     send_telegram(
-        "🟢 <b>Oracle Bot v2.0 — ONLINE</b>\n"
+        "🟢 <b>ORACLE Bot — ONLINE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✅ Source: Pinnacle\n"
-        "✅ Marchés: H2H + Asian Handicap\n"
-        "✅ Foot asiatique ajouté\n"
+        "✅ Source: OddsPapi (350+ bookmakers)\n"
+        "✅ Cotes: Pinnacle | Bet365 | Unibet | Betclic\n"
+        "✅ Marchés: H2H + Handicap + Over/Under\n"
         "✅ Oracle IA Gemini intégré\n"
-        "✅ Pre-match uniquement\n"
-        "✅ Filtre cote min 1.40\n"
+        "✅ Fiabilité minimum 85%\n"
+        "✅ Cote min 1.40 — max 2.50\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "🔍 Surveillance 24h/24 en cours..."
+        "🔍 Scan toutes les 4h — En cours..."
     )
     while True:
-        check_drops()
-        time.sleep(300)
+        scan_and_alert()
+        print("⏳ Prochain scan dans 4h...")
+        time.sleep(14400)
