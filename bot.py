@@ -15,12 +15,10 @@ SPORTS = [
     {"key": "soccer_italy_serie_a", "name": "Serie A"},
     {"key": "soccer_germany_bundesliga", "name": "Bundesliga"},
     {"key": "soccer_uefa_champs_league", "name": "Champions League"},
+    {"key": "soccer_france_ligue_two", "name": "Ligue 2"},
+    {"key": "soccer_england_league1", "name": "League One"},
     {"key": "basketball_nba", "name": "NBA"},
-    {"key": "basketball_euroleague", "name": "EuroLeague"},
-    {"key": "tennis_atp_french_open", "name": "Tennis ATP"},
-    {"key": "tennis_wta_french_open", "name": "Tennis WTA"},
     {"key": "icehockey_nhl", "name": "NHL"},
-    {"key": "mma_mixed_martial_arts", "name": "MMA"},
 ]
 
 BOOKMAKERS = ["bet365", "unibet"]
@@ -224,7 +222,7 @@ def oracle_analyse(home, away, sport, all_markets):
 def analyse_du_jour(chat_id):
     send_telegram(chat_id,
         "<b>ORACLE - Analyse en cours...</b>\n"
-        "Football | Basket | Tennis | MMA | NHL\n"
+        "Football | NBA | NHL\n"
         "Cotes Bet365 | Unibet en temps reel\n"
         "Patiente 30 secondes..."
     )
@@ -272,7 +270,7 @@ def main():
     send_telegram(TELEGRAM_CHAT_ID,
         "<b>ORACLE Bot - ONLINE</b>\n"
         "-------------------\n"
-        "Football | Basket | Tennis | MMA | NHL\n"
+        "Football | NBA | NHL\n"
         "Cotes Bet365 | Unibet\n"
         "Marches : 1N2 | Handicap | Totals\n"
         "Cote minimum : 1.18\n"
