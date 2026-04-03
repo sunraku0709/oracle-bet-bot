@@ -24,11 +24,10 @@ SPORTS = [
 ]
 
 BOOKMAKERS = ["bet365", "unibet"]
-MIN_RELIABILITY = 65
 
 
 def send_telegram(chat_id, message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    url = "https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/sendMessage"
     try:
         requests.post(url, json={
             "chat_id": chat_id,
@@ -36,11 +35,11 @@ def send_telegram(chat_id, message):
             "parse_mode": "HTML"
         }, timeout=10)
     except Exception as e:
-        print(f"Telegram error: {e}")
+        print("Telegram error: " + str(e))
 
 
 def get_updates(offset=None):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getUpdates"
+    url = "https://api.telegram.org/bot" + TELEGRAM_TOKEN + "/getUpdates"
     params = {"timeout": 30}
     if offset:
         params["offset"] = offset
@@ -49,13 +48,13 @@ def get_updates(offset=None):
         if r.status_code == 200:
             return r.json().get("result", [])
     except Exception as e:
-        print(f"Updates error: {e}")
+        print("Updates error: " + str(e))
     return []
 
 
 def get_odds(sport_key):
     try:
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds"
+        url = "https://api.the-odds-api.com/v4/sports/" + sport_key + "/odds"
         params = {
             "apiKey": ODDS_API_KEY,
             "regions": "eu",
@@ -69,17 +68,16 @@ def get_odds(sport_key):
         if r.status_code == 200:
             return r.json()
     except Exception as e:
-        print(f"Odds error: {e}")
+        print("Odds error: " + str(e))
     return []
 
 
-def extract_all_opportunities(games, sport_name):
+def extract_opportunities(games, sport_name):
     opportunities = []
     for game in games:
         home = game.get("home_team", "")
         away = game.get("away_team", "")
         commence_time = game.get("commence_time", "")
-
         odds_by_selection = {}
         for bookmaker in game.get("bookmakers", []):
             book_key = bookmaker.get("key", "")
@@ -89,18 +87,16 @@ def extract_all_opportunities(games, sport_name):
                     name = outcome.get("name", "")
                     price = outcome.get("price", 0)
                     point = outcome.get("point", "")
-
                     if market_key == "totals":
-                        label = f"Total {name} {point}"
+                        label = "Total " + name + " " + str(point)
                         market_label = "Total buts/points"
                     elif market_key == "spreads":
-                        label = f"Handicap {name} {point}"
+                        label = "Handicap " + name + " " + str(point)
                         market_label = "Handicap"
                     else:
                         label = name
                         market_label = "Resultat 1N2"
-
-                    key = f"{market_key}_{label}"
+                    key = market_key + "_" + label
                     if key not in odds_by_selection:
                         odds_by_selection[key] = {
                             "market": market_label,
@@ -111,116 +107,117 @@ def extract_all_opportunities(games, sport_name):
                     odds_by_selection[key]["odds"][book_key] = price
                     if price > odds_by_selection[key]["best_odds"]:
                         odds_by_selection[key]["best_odds"] = price
-
-        all_odds_for_game = []
+        all_odds = []
         for key, info in odds_by_selection.items():
-            valid_odds = {b: o for b, o in info["odds"].items() if o >= 1.18}
-            if valid_odds:
-                all_odds_for_game.append({
+            valid = {b: o for b, o in info["odds"].items() if o >= 1.18}
+            if valid:
+                all_odds.append({
                     "market": info["market"],
                     "selection": info["selection"],
-                    "odds_by_book": valid_odds,
+                    "odds_by_book": valid,
                     "best_odds": info["best_odds"]
                 })
-
-        if all_odds_for_game:
+        if all_odds:
             opportunities.append({
                 "home": home,
                 "away": away,
                 "sport": sport_name,
                 "commence_time": commence_time,
-                "all_markets": all_odds_for_game
+                "all_markets": all_odds
             })
-
     return opportunities
 
 
-def oracle_analyse(home, away, sport, all_markets):
+def build_prompt(home, away, sport, all_markets):
     odds_lines = []
     for m in all_markets:
-        odds_str = " | ".join([f"{b.upper()}: {o:.2f}" for b, o in m["odds_by_book"].items()])
-        odds_lines.append(f"  [{m['market']}] {m['selection']} -> {odds_str}")
+        odds_str = " | ".join([b.upper() + ": " + str(round(o, 2)) for b, o in m["odds_by_book"].items()])
+        odds_lines.append("  [" + m["market"] + "] " + m["selection"] + " -> " + odds_str)
     all_odds_text = "\n".join(odds_lines)
+    prompt = "Tu es Team Oracle Bet, assistant d analyse sportive ultra-structure.\n"
+    prompt += "Fiabilite minimum : 65%.\n\n"
+    prompt += "MATCH : " + home + " vs " + away + "\n"
+    prompt += "SPORT : " + sport + "\n\n"
+    prompt += "COTES EN TEMPS REEL (Bet365 | Unibet) :\n"
+    prompt += all_odds_text + "\n\n"
+    prompt += "STRUCTURE OBLIGATOIRE :\n\n"
+    prompt += "1. FORME RECENTE (5 a 10 derniers matchs)\n"
+    prompt += "- Resultats + performances globales\n"
+    prompt += "- Tendances : progression / stagnation / chute\n"
+    prompt += "- Stats cles : xG, xGA, buts marques/encaisses, occasions creees\n"
+    prompt += "- Lecture factuelle de la dynamique reelle\n\n"
+    prompt += "2. H2H CONFRONTATIONS DIRECTES\n"
+    prompt += "- Dynamiques reellement significatives uniquement\n"
+    prompt += "- Renversements de tendance\n"
+    prompt += "- Elements recurrents d un match a l autre\n"
+    prompt += "- Si aucune tendance : Aucune tendance H2H exploitable\n\n"
+    prompt += "3. STYLE DE JEU + FORCES ET FAIBLESSES\n"
+    prompt += "Pour chaque equipe :\n"
+    prompt += "- Systeme tactique principal\n"
+    prompt += "- Pressing, bloc, transitions, ailes, jeu axial, aerien\n"
+    prompt += "- Points forts / Points faibles\n"
+    prompt += "- Zones ou phases qui peuvent peser sur le match\n\n"
+    prompt += "4. ABSENCES ET IMPACT REEL\n"
+    prompt += "- Blesses / suspendus / incertains\n"
+    prompt += "- Impact reel : titulaire cle, poste non double, remplacant important\n"
+    prompt += "- Compositions probables si disponibles\n"
+    prompt += "- Fiabilite : confirme / probable / a confirmer\n"
+    prompt += "- Si inconnu : Aucune source fiable disponible sur ce point\n\n"
+    prompt += "5. CALENDRIER ET CONTEXTE PHYSIQUE\n"
+    prompt += "- Charge des matchs recents et a venir\n"
+    prompt += "- Deplacements compliques, match europeen avant ou apres\n"
+    prompt += "- Risques de rotation, fatigue probable\n"
+    prompt += "- Saison en cours uniquement\n\n"
+    prompt += "6. ENJEUX DU MATCH\n"
+    prompt += "- Situation au classement\n"
+    prompt += "- Objectifs : titre, Europe, maintien, derby, match charniere\n"
+    prompt += "- Niveau de motivation et pression attendue\n\n"
+    prompt += "7. DECLARATIONS OFFICIELLES\n"
+    prompt += "- Informations concretes uniquement : composition, strategie, blessures, objectifs\n"
+    prompt += "- Ignore les declarations vagues\n"
+    prompt += "- Cite la source systematiquement\n"
+    prompt += "- Si absent : Aucune source fiable disponible\n\n"
+    prompt += "8. STATISTIQUES AVANCEES\n"
+    prompt += "- xG, xGA, tirs cadres, occasions franches\n"
+    prompt += "- Possession utile, duels gagnes\n"
+    prompt += "- Clean sheets, buts concedes\n"
+    prompt += "- Uniquement ce qui peut faire basculer la rencontre\n\n"
+    prompt += "9. RED FLAGS\n"
+    prompt += "- Match sans enjeu reel\n"
+    prompt += "- Dynamique instable ou incoherente\n"
+    prompt += "- Rotation probable\n"
+    prompt += "- Gros match juste avant ou apres\n"
+    prompt += "- Conflits internes, tensions, baisse de forme non expliquee\n"
+    prompt += "- Contexte externe : fatigue, climat, pression mediatique\n\n"
+    prompt += "10. SYNTHESE FINALE ET PRONOSTICS\n"
+    prompt += "- 4 a 6 elements decisifs\n"
+    prompt += "- Pour CHAQUE cote listee ci-dessus :\n"
+    prompt += "  Probabilite estimee en %\n"
+    prompt += "  VALUE BET : oui ou non\n"
+    prompt += "  Recommandation : JOUER ou EVITER\n"
+    prompt += "- TOP 3 paris classes par ordre de preference\n"
+    prompt += "- Classification : GOLD 75 pct+ / SILVER 65-74 pct / NO BET\n\n"
+    prompt += "REGLES ABSOLUES :\n"
+    prompt += "- Zero blabla, zero supposition, zero narration emotionnelle\n"
+    prompt += "- Phrases interdites : Ils voudront se rattraper, On peut imaginer, Cette equipe pourrait\n"
+    prompt += "- Donnees verifiables uniquement\n"
+    prompt += "- Sources : presse sportive reference, sites stats etablis, organismes officiels\n"
+    prompt += "- Si info absente : Aucune source fiable disponible sur ce point\n"
+    prompt += "- Rapport 800 a 1200 mots"
+    return prompt
 
-    prompt = (
-        f"Tu es Team Oracle Bet, un assistant d'analyse sportive ultra-structure et professionnel.\n"
-        f"Fiabilite minimum exigee : 65%.\n\n"
-        f"MATCH : {home} vs {away}\n"
-        f"SPORT : {sport}\n\n"
-        f"TOUTES LES COTES DISPONIBLES EN TEMPS REEL :\n"
-        f"{all_odds_text}\n\n"
-        f"Produis un rapport d'analyse complet en respectant exactement cette structure :\n\n"
 
-        f"1. FORME RECENTE (5 a 10 derniers matchs)\n"
-        f"- Resultats + performances globales\n"
-        f"- Tendances : progression / stagnation / chute\n"
-        f"- Stats cles selon sport : xG/xGA foot | pts/reb basket | aces tennis | strikes MMA | buts NHL\n\n"
-
-        f"2. H2H CONFRONTATIONS DIRECTES\n"
-        f"- Dynamiques significatives uniquement\n"
-        f"- Renversements de tendance\n"
-        f"- Si aucune tendance : Aucune tendance H2H exploitable\n\n"
-
-        f"3. STYLE DE JEU + FORCES ET FAIBLESSES\n"
-        f"- Systeme/style principal de chaque equipe\n"
-        f"- Points forts / faibles\n"
-        f"- Zones qui peuvent peser sur ce match\n\n"
-
-        f"4. ABSENCES ET IMPACT REEL\n"
-        f"- Blesses / suspendus / incertains\n"
-        f"- Impact : titulaire cle ? poste non double ?\n"
-        f"- Fiabilite : confirme / probable / a confirmer\n"
-        f"- Si inconnu : Aucune source fiable disponible\n\n"
-
-        f"5. CALENDRIER ET CONTEXTE PHYSIQUE\n"
-        f"- Charge recente / matchs a venir\n"
-        f"- Fatigue probable / rotation\n\n"
-
-        f"6. ENJEUX DU MATCH\n"
-        f"- Classement et objectifs\n"
-        f"- Motivation / pression\n\n"
-
-        f"7. DECLARATIONS OFFICIELLES\n"
-        f"- Infos concretes uniquement (blessures, compo, strategie)\n"
-        f"- Source citee ou : Aucune source fiable disponible\n\n"
-
-        f"8. STATISTIQUES AVANCEES\n"
-        f"- Foot : xG, xGA, tirs cadres, possession, clean sheets\n"
-        f"- Basket : off/def rating, pace, rebonds, turnovers\n"
-        f"- Tennis : 1er service %, break points, points sur 2e service\n"
-        f"- MMA : striking accuracy, takedown defense, finish rate\n"
-        f"- NHL : Corsi, PDO, power play %, shots on goal\n\n"
-
-        f"9. RED FLAGS\n"
-        f"- Match sans enjeu / rotation / fatigue\n"
-        f"- Dynamique instable / contexte negatif\n\n"
-
-        f"10. SYNTHESE ET PRONOSTICS SUR TOUTES LES COTES\n"
-        f"- 4 a 6 elements decisifs\n"
-        f"- Pour CHAQUE marche disponible liste ci-dessus :\n"
-        f"  * Probabilite estimee (%)\n"
-        f"  * VALUE BET : oui / non\n"
-        f"  * Recommandation : JOUER / EVITER\n"
-        f"- TOP 3 paris classes par ordre de preference\n"
-        f"- Classification : GOLD (75%+) / SILVER (65-74%) / NO BET\n\n"
-
-        f"REGLES ABSOLUES :\n"
-        f"- Zero blabla, zero supposition, zero narration emotionnelle\n"
-        f"- Donnees verifiables uniquement\n"
-        f"- Si info absente : Aucune source fiable disponible\n"
-        f"- Edge positif obligatoire pour recommander\n"
-        f"- Rapport 800 a 1200 mots"
-    )
-
+def oracle_analyse(home, away, sport, all_markets):
+    prompt = build_prompt(home, away, sport, all_markets)
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+        url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + GEMINI_API_KEY
         response = requests.post(url, json={
             "contents": [{"parts": [{"text": prompt}]}]
         }, timeout=30)
         if response.status_code == 200:
             return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
-        print(f"Gemini error: {e}")
+        print("Gemini error: " + str(e))
     return "Analyse indisponible."
 
 
@@ -228,19 +225,17 @@ def analyse_du_jour(chat_id):
     send_telegram(chat_id,
         "<b>ORACLE - Analyse en cours...</b>\n"
         "Football | Basket | Tennis | MMA | NHL\n"
-        "Toutes cotes Bet365 | Unibet\n"
+        "Cotes Bet365 | Unibet en temps reel\n"
         "Patiente 30 secondes..."
     )
-
     all_opps = []
     for sport in SPORTS:
         games = get_odds(sport["key"])
         if not games:
             continue
-        opps = extract_all_opportunities(games, sport["name"])
+        opps = extract_opportunities(games, sport["name"])
         all_opps.extend(opps)
         time.sleep(1)
-
     if not all_opps:
         send_telegram(chat_id,
             "<b>ORACLE - Aucun match disponible</b>\n\n"
@@ -248,53 +243,29 @@ def analyse_du_jour(chat_id):
             "Reessaie dans quelques heures."
         )
         return
-
-    # Match avec le plus de marches disponibles
     best = max(all_opps, key=lambda x: len(x["all_markets"]))
-
-    analyse = oracle_analyse(
-        best["home"], best["away"], best["sport"], best["all_markets"]
-    )
-
+    analyse = oracle_analyse(best["home"], best["away"], best["sport"], best["all_markets"])
     if "NO BET" in analyse.upper():
         send_telegram(chat_id, "<b>ORACLE - NO BET</b>\nFiabilite insuffisante. Reessaie ce soir.")
         return
-
     reliability = 65
     for num in range(99, 64, -1):
         if str(num) in analyse:
             reliability = num
             break
-
     classification = "GOLD" if reliability >= 75 else "SILVER"
-
     odds_display = ""
     for m in best["all_markets"]:
-        odds_str = " | ".join([f"{b.upper()}: {o:.2f}" for b, o in m["odds_by_book"].items()])
-        odds_display += f"  <b>{m['selection']}</b> ({m['market']})\n  {odds_str}\n"
-
-    msg = (
-        f"<b>ORACLE - ANALYSE DU JOUR</b>\n"
-        f"-------------------\n"
-        f"<b>{best['home']} vs {best['away']}</b>\n"
-        f"{best['sport']}\n"
-        f"-------------------\n"
-        f"<b>TOUTES LES COTES :</b>\n"
-        f"{odds_display}"
-        f"-------------------\n"
-        f"<b>ANALYSE ORACLE :</b>\n\n"
-        f"{analyse}\n\n"
-        f"-------------------\n"
-        f"Fiabilite: <b>{reliability}%</b>\n"
-        f"Classification: <b>{classification}</b>"
-    )
-
-    # Telegram limite a 4096 caracteres - on envoie en 2 messages si besoin
-    if len(msg) > 4096:
-        send_telegram(chat_id, msg[:4090] + "\n<i>...suite ci-dessous</i>")
-        send_telegram(chat_id, msg[4090:])
+        odds_str = " | ".join([b.upper() + ": " + str(round(o, 2)) for b, o in m["odds_by_book"].items()])
+        odds_display += "  <b>" + m["selection"] + "</b> (" + m["market"] + ")\n  " + odds_str + "\n"
+    header = "<b>ORACLE - ANALYSE DU JOUR</b>\n-------------------\n<b>" + best["home"] + " vs " + best["away"] + "</b>\n" + best["sport"] + "\n-------------------\n<b>COTES DISPONIBLES :</b>\n" + odds_display + "-------------------\n<b>ANALYSE ORACLE :</b>\n\n"
+    footer = "\n-------------------\nFiabilite: <b>" + str(reliability) + "%</b>\nClassification: <b>" + classification + "</b>"
+    full_msg = header + analyse + footer
+    if len(full_msg) > 4096:
+        send_telegram(chat_id, header + analyse[:3000] + "\n<i>...suite ci-dessous</i>")
+        send_telegram(chat_id, analyse[3000:] + footer)
     else:
-        send_telegram(chat_id, msg)
+        send_telegram(chat_id, full_msg)
 
 
 def main():
@@ -302,9 +273,10 @@ def main():
         "<b>ORACLE Bot - ONLINE</b>\n"
         "-------------------\n"
         "Football | Basket | Tennis | MMA | NHL\n"
-        "Toutes cotes Bet365 | Unibet\n"
+        "Cotes Bet365 | Unibet\n"
         "Marches : 1N2 | Handicap | Totals\n"
-        "Fiabilite minimum 65%\n"
+        "Cote minimum : 1.18\n"
+        "Fiabilite minimum : 65%\n"
         "-------------------\n"
         "Ecris analyse pour le pari du jour"
     )
@@ -322,4 +294,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main(
+    main()
