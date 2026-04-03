@@ -5,6 +5,7 @@ import os
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 ODDS_API_KEY = os.environ.get("ODDS_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 SPORTS = [
     # Europe
@@ -59,7 +60,7 @@ def oracle_analyse(home, away, sport, market, selection, cote_old, cote_new, dro
 
 ALERTE SHARP MONEY DÉTECTÉE SUR PINNACLE :
 - Match : {home} vs {away}
-- Sport/Championnat : {sport}
+- Championnat : {sport}
 - Marché : {market}
 - Sélection : {selection}
 - Cote Pinnacle : {cote_old:.2f} → {cote_new:.2f} (chute -{drop_pct:.1f}%)
@@ -69,25 +70,16 @@ Analyse express en 5 points :
 2. CONTEXTE — Force des équipes, forme récente
 3. EDGE — Prob estimée × Cote - 1 = ?
 4. RISQUE — Principal danger
-5. VERDICT — GOLD ✅ / SILVER ⚡ / NO BET ❌ + mise recommandée % bankroll
+5. VERDICT — GOLD ✅ / SILVER ⚡ / NO BET ❌ + mise % bankroll
 
-Sois direct, maximum 150 mots."""
+Maximum 150 mots, sois direct."""
 
-    response = requests.post(
-        "https://api.anthropic.com/v1/messages",
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": os.environ.get("ANTHROPIC_API_KEY"),
-            "anthropic-version": "2023-06-01"
-        },
-        json={
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 400,
-            "messages": [{"role": "user", "content": prompt}]
-        }
-    )
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
+    response = requests.post(url, json={
+        "contents": [{"parts": [{"text": prompt}]}]
+    })
     if response.status_code == 200:
-        return response.json()["content"][0]["text"]
+        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     return "⚠️ Analyse Oracle indisponible."
 
 def check_drops():
@@ -138,8 +130,8 @@ if __name__ == "__main__":
         "━━━━━━━━━━━━━━━━━━\n"
         "✅ Source: Pinnacle\n"
         "✅ Marchés: H2H + Asian Handicap\n"
-        "✅ Championnats asiatiques ajoutés\n"
-        "✅ Oracle IA intégré\n"
+        "✅ Foot asiatique ajouté\n"
+        "✅ Oracle IA Gemini intégré\n"
         "✅ Pre-match uniquement\n"
         "✅ Filtre cote min 1.40\n"
         "━━━━━━━━━━━━━━━━━━\n"
