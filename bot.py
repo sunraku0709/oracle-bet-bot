@@ -1,7 +1,6 @@
 import requests
 import time
 import os
-from datetime import datetime
 
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
@@ -9,14 +8,15 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ODDSPAPI_KEY = os.environ.get("ODDSPAPI_KEY")
 
 SPORTS = [
-    {"id": 10, "name": "⚽ Football"},
-    {"id": 1, "name": "🏀 Basketball"},
-    {"id": 13, "name": "🎾 Tennis"},
+    {"id": 10, "name": "Football"},
+    {"id": 1, "name": "Basketball"},
+    {"id": 13, "name": "Tennis"},
 ]
 
 TARGET_BOOKS = ["pinnacle", "bet365", "unibet", "betclic"]
 MIN_ODDS = 1.40
 MAX_ODDS = 2.50
+MIN_RELIABILITY = 65
 
 def send_telegram(chat_id, message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -104,7 +104,7 @@ def oracle_analyse(home, away, sport, market, selection, odds_by_book):
     odds_text = " | ".join([f"{b.upper()}: {o:.2f}" for b, o in odds_by_book.items()])
     best_odds = max(odds_by_book.values())
 
-    prompt = f"""Tu es ORACLE, analyste de paris sportifs professionnel.
+    prompt = f"""Tu es ORACLE, analyste de paris sportifs expert en football, basketball et tennis.
 
 MATCH : {home} vs {away}
 SPORT : {sport}
@@ -113,20 +113,55 @@ SÉLECTION : {selection}
 COTES RÉELLES : {odds_text}
 MEILLEURE COTE : {best_odds:.2f}
 
-Analyse en 5 points :
-1. CONTEXTE — Forme et enjeu du match
-2. STATISTIQUES — Données clés pour ce marché
-3. FIABILITÉ — Estime en % (honnête et précis)
-4. RISQUE — Ce qui pourrait faire rater ce pari
-5. VERDICT — GOLD ✅ (85%+) / SILVER ⚡ (75-84%) / NO BET ❌
+ANALYSE ULTRA-STRUCTURÉE OBLIGATOIRE :
 
-Maximum 120 mots. Direct et précis."""
+1. FORME RÉCENTE (5 derniers matchs)
+- Résultats V/N/D
+- Buts marqués/encaissés ou points/sets
+- Dynamique : progression / chute / stagnation
+
+2. H2H
+- Tendances tactiques réelles uniquement
+- Si aucune tendance : "Aucune tendance H2H exploitable"
+
+3. STYLE DE JEU & MATCH-UP CLÉ
+- Points forts / Points faibles
+- Avantage tactique pour ce marché précis
+
+4. ABSENCES & IMPACT
+- Joueurs clés absents et impact réel
+- Si inconnu : "Aucune source fiable disponible"
+
+5. ENJEUX
+- Classement et objectif réel
+- Niveau de motivation
+
+6. RED FLAGS
+- Fatigue / rotation / match sans enjeu
+- Dynamique instable
+
+7. SYNTHÈSE
+- 3 à 5 facteurs décisifs uniquement
+- Données uniquement, aucune supposition
+
+8. PRONOSTIC FINAL
+- Justification data uniquement
+- Probabilité estimée en %
+- Niveau de risque : Faible / Moyen / Élevé
+- Classification : GOLD ✅ (75%+) / SILVER ⚡ (65-74%) / NO BET ❌ (moins de 65%)
+
+RÈGLES ABSOLUES :
+- Aucun blabla
+- Aucune supposition
+- Données uniquement
+- Si info absente : "Aucune source fiable disponible"
+- Toujours donner un verdict final clair"""
 
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}"
         response = requests.post(url, json={
             "contents": [{"parts": [{"text": prompt}]}]
-        }, timeout=15)
+        }, timeout=20)
         if response.status_code == 200:
             return response.json()["candidates"][0]["content"]["parts"][0]["text"]
     except Exception as e:
@@ -134,7 +169,12 @@ Maximum 120 mots. Direct et précis."""
     return "⚠️ Analyse indisponible."
 
 def analyse_du_jour(chat_id):
-    send_telegram(chat_id, "🔍 <b>ORACLE en cours d'analyse...</b>\nJe scanne les matchs du jour sur Pinnacle, Bet365, Unibet et Betclic. Patiente 30 secondes ⏳")
+    send_telegram(chat_id,
+        "🔍 <b>ORACLE — Analyse en cours...</b>\n"
+        "Je scanne Football, Basketball et Tennis\n"
+        "Cotes Pinnacle | Bet365 | Unibet | Betclic\n"
+        "⏳ Patiente 30 secondes..."
+    )
 
     results = []
 
@@ -143,7 +183,7 @@ def analyse_du_jour(chat_id):
         if not fixtures:
             continue
 
-        for fixture in fixtures[:3]:
+        for fixture in fixtures[:4]:
             try:
                 fixture_id = fixture.get("fixtureId") or fixture.get("id")
                 participants = fixture.get("participants", [])
@@ -177,13 +217,13 @@ def analyse_du_jour(chat_id):
                     if "NO BET" in analyse.upper():
                         continue
 
-                    reliability = 75
-                    for num in range(99, 74, -1):
+                    reliability = 65
+                    for num in range(99, 64, -1):
                         if str(num) in analyse:
                             reliability = num
                             break
 
-                    if reliability < 75:
+                    if reliability < MIN_RELIABILITY:
                         continue
 
                     results.append({
@@ -214,12 +254,11 @@ def analyse_du_jour(chat_id):
     if not results:
         send_telegram(chat_id,
             "⚠️ <b>ORACLE — Aucun pari disponible</b>\n\n"
-            "Pas d'opportunité suffisamment fiable aujourd'hui.\n"
-            "Réessaie plus tard ou ce soir quand les cotes se stabilisent. 🎯"
+            "Pas d'opportunité fiable trouvée pour le moment.\n"
+            "Réessaie dans quelques heures quand les cotes se stabilisent 🎯"
         )
         return
 
-    # Envoie le meilleur résultat
     results.sort(key=lambda x: x["reliability"], reverse=True)
     best = results[0]
 
@@ -228,7 +267,7 @@ def analyse_du_jour(chat_id):
         for b, o in best["odds_by_book"].items()
     ])
 
-    classification = "GOLD ✅" if best["reliability"] >= 85 else "SILVER ⚡"
+    classification = "GOLD ✅" if best["reliability"] >= 75 else "SILVER ⚡"
     gain = round(5 * best["best_odds"], 2)
 
     msg = (
@@ -256,12 +295,13 @@ def main():
     send_telegram(TELEGRAM_CHAT_ID,
         "🟢 <b>ORACLE Bot — ONLINE</b>\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "✅ Source: OddsPapi (350+ bookmakers)\n"
+        "✅ Sports: ⚽ Football | 🏀 Basketball | 🎾 Tennis\n"
         "✅ Cotes: Pinnacle | Bet365 | Unibet | Betclic\n"
-        "✅ Sports: Football | Basketball | Tennis\n"
-        "✅ Oracle IA Gemini intégré\n"
+        "✅ Analyse ultra-structurée\n"
+        "✅ Fiabilité minimum 65%\n"
+        "✅ Cote min 1.40 — max 2.50\n"
         "━━━━━━━━━━━━━━━━━━\n"
-        "💬 Écris <b>analyse</b> pour recevoir le pari du jour 🎯"
+        "💬 Écris <b>analyse</b> pour le pari du jour 🎯"
     )
 
     offset = None
@@ -276,7 +316,7 @@ def main():
             if not chat_id or not text:
                 continue
 
-            if any(word in text for word in ["analyse", "pari", "oracle", "aujourd", "bonjour", "salut", "start"]):
+            if any(word in text for word in ["analyse", "pari", "oracle", "start", "bonjour", "salut", "today", "aujourd"]):
                 analyse_du_jour(chat_id)
 
         time.sleep(2)
