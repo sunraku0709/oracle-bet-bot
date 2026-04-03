@@ -15,8 +15,6 @@ SPORTS = [
     {"key": "soccer_italy_serie_a", "name": "Serie A"},
     {"key": "soccer_germany_bundesliga", "name": "Bundesliga"},
     {"key": "soccer_uefa_champs_league", "name": "Champions League"},
-    {"key": "soccer_france_ligue_two", "name": "Ligue 2"},
-    {"key": "soccer_england_league1", "name": "League One"},
     {"key": "basketball_nba", "name": "NBA"},
     {"key": "icehockey_nhl", "name": "NHL"},
 ]
@@ -59,7 +57,6 @@ def get_odds(sport_key):
             "markets": "h2h,totals,spreads",
             "oddsFormat": "decimal",
             "bookmakers": ",".join(BOOKMAKERS),
-            "commenceTimeFrom": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             "commenceTimeTo": (datetime.utcnow() + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%SZ")
         }
         r = requests.get(url, params=params, timeout=10)
@@ -107,7 +104,7 @@ def extract_opportunities(games, sport_name):
                         odds_by_selection[key]["best_odds"] = price
         all_odds = []
         for key, info in odds_by_selection.items():
-            valid = {b: o for b, o in info["odds"].items() if o >= 1.18}
+            valid = {b: o for b, o in info["odds"].items() if o >= 1.15}
             if valid:
                 all_odds.append({
                     "market": info["market"],
@@ -152,54 +149,38 @@ def build_prompt(home, away, sport, all_markets):
     prompt += "3. STYLE DE JEU + FORCES ET FAIBLESSES\n"
     prompt += "Pour chaque equipe :\n"
     prompt += "- Systeme tactique principal\n"
-    prompt += "- Pressing, bloc, transitions, ailes, jeu axial, aerien\n"
     prompt += "- Points forts / Points faibles\n"
     prompt += "- Zones ou phases qui peuvent peser sur le match\n\n"
     prompt += "4. ABSENCES ET IMPACT REEL\n"
     prompt += "- Blesses / suspendus / incertains\n"
-    prompt += "- Impact reel : titulaire cle, poste non double, remplacant important\n"
-    prompt += "- Compositions probables si disponibles\n"
-    prompt += "- Fiabilite : confirme / probable / a confirmer\n"
+    prompt += "- Impact reel sur le jeu\n"
     prompt += "- Si inconnu : Aucune source fiable disponible sur ce point\n\n"
     prompt += "5. CALENDRIER ET CONTEXTE PHYSIQUE\n"
-    prompt += "- Charge des matchs recents et a venir\n"
-    prompt += "- Deplacements compliques, match europeen avant ou apres\n"
-    prompt += "- Risques de rotation, fatigue probable\n"
-    prompt += "- Saison en cours uniquement\n\n"
+    prompt += "- Charge des matchs recents\n"
+    prompt += "- Risques de rotation, fatigue probable\n\n"
     prompt += "6. ENJEUX DU MATCH\n"
     prompt += "- Situation au classement\n"
-    prompt += "- Objectifs : titre, Europe, maintien, derby, match charniere\n"
-    prompt += "- Niveau de motivation et pression attendue\n\n"
-    prompt += "7. DECLARATIONS OFFICIELLES\n"
-    prompt += "- Informations concretes uniquement : composition, strategie, blessures, objectifs\n"
-    prompt += "- Ignore les declarations vagues\n"
-    prompt += "- Cite la source systematiquement\n"
-    prompt += "- Si absent : Aucune source fiable disponible\n\n"
-    prompt += "8. STATISTIQUES AVANCEES\n"
+    prompt += "- Objectifs : titre, Europe, maintien, derby\n"
+    prompt += "- Niveau de motivation\n\n"
+    prompt += "7. STATISTIQUES AVANCEES\n"
     prompt += "- xG, xGA, tirs cadres, occasions franches\n"
-    prompt += "- Possession utile, duels gagnes\n"
-    prompt += "- Clean sheets, buts concedes\n"
-    prompt += "- Uniquement ce qui peut faire basculer la rencontre\n\n"
-    prompt += "9. RED FLAGS\n"
+    prompt += "- Clean sheets, buts concedes\n\n"
+    prompt += "8. RED FLAGS\n"
     prompt += "- Match sans enjeu reel\n"
-    prompt += "- Dynamique instable ou incoherente\n"
+    prompt += "- Dynamique instable\n"
     prompt += "- Rotation probable\n"
-    prompt += "- Gros match juste avant ou apres\n"
-    prompt += "- Conflits internes, tensions, baisse de forme non expliquee\n"
-    prompt += "- Contexte externe : fatigue, climat, pression mediatique\n\n"
-    prompt += "10. SYNTHESE FINALE ET PRONOSTICS\n"
+    prompt += "- Fatigue ou gros match avant ou apres\n\n"
+    prompt += "9. SYNTHESE FINALE ET PRONOSTICS\n"
     prompt += "- 4 a 6 elements decisifs\n"
-    prompt += "- Pour CHAQUE cote listee ci-dessus :\n"
+    prompt += "- Pour CHAQUE cote listee :\n"
     prompt += "  Probabilite estimee en %\n"
     prompt += "  VALUE BET : oui ou non\n"
     prompt += "  Recommandation : JOUER ou EVITER\n"
     prompt += "- TOP 3 paris classes par ordre de preference\n"
-    prompt += "- Classification : GOLD 75 pct+ / SILVER 65-74 pct / NO BET\n\n"
+    prompt += "- Classification : GOLD 75pct+ / SILVER 65-74pct / NO BET\n\n"
     prompt += "REGLES ABSOLUES :\n"
-    prompt += "- Zero blabla, zero supposition, zero narration emotionnelle\n"
-    prompt += "- Phrases interdites : Ils voudront se rattraper, On peut imaginer, Cette equipe pourrait\n"
+    prompt += "- Zero blabla, zero supposition\n"
     prompt += "- Donnees verifiables uniquement\n"
-    prompt += "- Sources : presse sportive reference, sites stats etablis, organismes officiels\n"
     prompt += "- Si info absente : Aucune source fiable disponible sur ce point\n"
     prompt += "- Rapport 800 a 1200 mots"
     return prompt
@@ -256,7 +237,17 @@ def analyse_du_jour(chat_id):
     for m in best["all_markets"]:
         odds_str = " | ".join([b.upper() + ": " + str(round(o, 2)) for b, o in m["odds_by_book"].items()])
         odds_display += "  <b>" + m["selection"] + "</b> (" + m["market"] + ")\n  " + odds_str + "\n"
-    header = "<b>ORACLE - ANALYSE DU JOUR</b>\n-------------------\n<b>" + best["home"] + " vs " + best["away"] + "</b>\n" + best["sport"] + "\n-------------------\n<b>COTES DISPONIBLES :</b>\n" + odds_display + "-------------------\n<b>ANALYSE ORACLE :</b>\n\n"
+    header = (
+        "<b>ORACLE - ANALYSE DU JOUR</b>\n"
+        "-------------------\n"
+        "<b>" + best["home"] + " vs " + best["away"] + "</b>\n"
+        + best["sport"] + "\n"
+        "-------------------\n"
+        "<b>COTES DISPONIBLES :</b>\n"
+        + odds_display +
+        "-------------------\n"
+        "<b>ANALYSE ORACLE :</b>\n\n"
+    )
     footer = "\n-------------------\nFiabilite: <b>" + str(reliability) + "%</b>\nClassification: <b>" + classification + "</b>"
     full_msg = header + analyse + footer
     if len(full_msg) > 4096:
@@ -273,7 +264,7 @@ def main():
         "Football | NBA | NHL\n"
         "Cotes Bet365 | Unibet\n"
         "Marches : 1N2 | Handicap | Totals\n"
-        "Cote minimum : 1.18\n"
+        "Cote minimum : 1.15\n"
         "Fiabilite minimum : 65%\n"
         "-------------------\n"
         "Ecris analyse pour le pari du jour"
