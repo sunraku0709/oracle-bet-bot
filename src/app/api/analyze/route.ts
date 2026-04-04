@@ -90,17 +90,12 @@ RÈGLES ABSOLUES :
 - Si info absente : Aucune source fiable disponible
 - Rapport 800 à 1200 mots`
 
-    // Lazy init to avoid build-time errors
-    const Anthropic = (await import('@anthropic-ai/sdk')).default
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await anthropic.messages.create({
-      model: 'claude-opus-4-6',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const result = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Gemini API
+    const { GoogleGenerativeAI } = await import('@google/generative-ai')
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!)
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    const geminiResult = await model.generateContent(prompt)
+    const result = geminiResult.response.text()
 
     // Save analysis to database
     await supabase.from('analyses').insert({
