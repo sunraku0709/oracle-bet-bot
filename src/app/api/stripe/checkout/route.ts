@@ -35,11 +35,13 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .single()
 
-    const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
-      payment_method_types: ['card'],
-      mode: 'subscription',
-      line_items: [
-        {
+    // Use pre-created Stripe price IDs if set in env, otherwise create dynamically
+    const priceIdEnvKey = `STRIPE_PRICE_${planId.toUpperCase()}` as keyof NodeJS.ProcessEnv
+    const priceId = process.env[priceIdEnvKey]
+
+    const lineItem = priceId
+      ? { price: priceId, quantity: 1 }
+      : {
           price_data: {
             currency: 'eur',
             product_data: {
@@ -47,11 +49,15 @@ export async function POST(req: NextRequest) {
               description: plan.features.slice(0, 2).join(' · '),
             },
             unit_amount: plan.priceEur,
-            recurring: { interval: 'month' },
+            recurring: { interval: 'month' as const },
           },
           quantity: 1,
-        },
-      ],
+        }
+
+    const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
+      payment_method_types: ['card'],
+      mode: 'subscription',
+      line_items: [lineItem],
       metadata: {
         user_id: user.id,
         plan: planId,

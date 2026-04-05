@@ -54,20 +54,14 @@ export function HeroSection() {
           <span className="text-[#C9A84C] font-semibold">65% et 85%</span>.
         </p>
 
-        {/* CTAs */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up">
+        {/* Single CTA */}
+        <div className="flex items-center justify-center mb-16 animate-fade-in-up">
           <Link
-            href="/auth"
-            className="btn-gold px-8 py-3.5 text-base rounded w-full sm:w-auto text-center"
+            href="/abonnement"
+            className="btn-gold px-10 py-4 text-base rounded w-full sm:w-auto text-center"
           >
             COMMENCER MAINTENANT
           </Link>
-          <a
-            href="#features"
-            className="btn-outline-gold px-8 py-3.5 text-base rounded w-full sm:w-auto text-center"
-          >
-            VOIR UNE DÉMO
-          </a>
         </div>
 
         {/* Stats */}

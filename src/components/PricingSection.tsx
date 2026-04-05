@@ -1,16 +1,7 @@
 import Link from "next/link";
+import { PLANS, type PlanId } from "@/lib/plans";
 
-const advantages = [
-  "Analyses illimitées Football, Basketball, Tennis",
-  "Rapport structuré en 10 points",
-  "Classification GOLD / SILVER / NO BET",
-  "Probabilités estimées par résultat",
-  "Données H2H et forme récente",
-  "Absences et contexte physique",
-  "Red flags et value bets",
-  "Historique de toutes vos analyses",
-  "Accès dashboard 24h/24",
-];
+const PLAN_ORDER: PlanId[] = ['starter', 'standard', 'premium'];
 
 export function PricingSection() {
   return (
@@ -19,67 +10,114 @@ export function PricingSection() {
         {/* Header */}
         <div className="text-center mb-16">
           <h2 className="font-bebas text-[clamp(2.5rem,6vw,5rem)] gold-gradient tracking-wide mb-4">
-            ABONNEMENT
+            NOS ABONNEMENTS
           </h2>
           <p className="text-white/50 text-base max-w-xl mx-auto">
-            Un accès complet à toutes les fonctionnalités. Sans engagement.
+            Sans engagement · Résiliable à tout moment · Paiement sécurisé Stripe
           </p>
         </div>
 
-        {/* Single pricing card */}
-        <div className="max-w-lg mx-auto">
-          <div className="card-dark rounded-2xl p-10 border border-[#C9A84C]/40 gold-glow flex flex-col gap-8 relative overflow-hidden">
-            {/* Top glow accent */}
-            <div
-              className="absolute top-0 left-0 right-0 h-px"
-              style={{
-                background:
-                  "linear-gradient(90deg, transparent, #C9A84C, transparent)",
-              }}
-            />
+        {/* 3 plan cards */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          {PLAN_ORDER.map((planId) => {
+            const plan = PLANS[planId];
+            const isPopular = plan.badge === 'POPULAIRE';
+            const isUnlimited = plan.badge === 'ILLIMITÉ';
 
-            {/* Badge + price */}
-            <div className="flex flex-col items-center gap-3 text-center">
-              <span className="inline-flex items-center gap-1.5 bg-[#C9A84C]/10 border border-[#C9A84C]/40 text-[#C9A84C] text-xs font-bold tracking-widest px-4 py-1.5 rounded-full uppercase">
-                ACCÈS COMPLET
-              </span>
-              <div className="flex items-end gap-1 mt-2">
-                <span className="font-bebas text-[5rem] leading-none gold-gradient tracking-wide">
-                  20€
-                </span>
-                <span className="text-white/40 text-base mb-3">/mois</span>
-              </div>
-            </div>
-
-            {/* Advantages list */}
-            <ul className="flex flex-col gap-3">
-              {advantages.map((item) => (
-                <li key={item} className="flex items-start gap-3 text-sm text-white/75">
-                  <span className="text-[#C9A84C] font-bold mt-0.5 shrink-0">✓</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-
-            {/* CTA */}
-            <div className="flex flex-col gap-3">
-              <Link
-                href="/auth"
-                className="btn-gold px-8 py-4 text-base rounded-lg text-center w-full"
+            return (
+              <div
+                key={planId}
+                className={`relative card-dark rounded-2xl p-8 flex flex-col transition-all duration-300 ${
+                  isPopular
+                    ? 'border-[#C9A84C] gold-glow scale-[1.02]'
+                    : isUnlimited
+                    ? 'border-[#AAFF00]/40'
+                    : 'border-white/10'
+                }`}
               >
-                S&apos;ABONNER MAINTENANT
-              </Link>
-              <p className="text-white/35 text-xs text-center">
-                Paiement sécurisé par Stripe • Résiliable à tout moment
-              </p>
-            </div>
-          </div>
+                {/* Top glow for popular */}
+                {isPopular && (
+                  <div
+                    className="absolute top-0 left-0 right-0 h-px rounded-t-2xl"
+                    style={{ background: "linear-gradient(90deg, transparent, #C9A84C, transparent)" }}
+                  />
+                )}
 
-          {/* Legal note */}
-          <p className="text-white/30 text-xs text-center mt-6 leading-relaxed">
-            Les performances passées ne garantissent pas les performances futures.
-          </p>
+                {/* Badge */}
+                {plan.badge && (
+                  <div
+                    className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold tracking-widest"
+                    style={{
+                      backgroundColor: isPopular ? '#C9A84C' : '#AAFF00',
+                      color: '#0A0A0A',
+                      fontFamily: "'Rajdhani', sans-serif",
+                    }}
+                  >
+                    {plan.badge}
+                  </div>
+                )}
+
+                {/* Plan name + price */}
+                <div className="text-center mb-6">
+                  <p
+                    className="text-xs font-semibold tracking-widest mb-2"
+                    style={{ color: plan.color, fontFamily: "'Rajdhani', sans-serif" }}
+                  >
+                    {plan.name}
+                  </p>
+                  <div className="flex items-end justify-center gap-1">
+                    <span
+                      className="text-5xl font-bold"
+                      style={{ fontFamily: "'Bebas Neue', sans-serif", color: plan.color, letterSpacing: '0.05em' }}
+                    >
+                      {plan.priceLabel}
+                    </span>
+                    <span className="text-white/40 mb-1.5 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>/mois</span>
+                  </div>
+                  <p className="text-xs text-white/30 mt-1" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                    {plan.analysesPerDay === null
+                      ? 'Analyses & pronostics illimités'
+                      : `${plan.analysesPerDay} analyse${plan.analysesPerDay > 1 ? 's' : ''}/jour · pronostics inclus`}
+                  </p>
+                </div>
+
+                {/* Features */}
+                <ul className="flex flex-col gap-2.5 mb-8 flex-1">
+                  {plan.features.map((item) => (
+                    <li key={item} className="flex items-start gap-2.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                      <span className="font-bold mt-0.5 shrink-0" style={{ color: plan.color }}>✓</span>
+                      <span className="text-white/75 text-sm">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* CTA */}
+                <Link
+                  href={`/auth?plan=${planId}&mode=register`}
+                  className="w-full py-3.5 rounded-xl text-sm font-bold tracking-widest text-center transition-all block"
+                  style={{
+                    fontFamily: "'Rajdhani', sans-serif",
+                    background: isPopular
+                      ? 'linear-gradient(135deg, #C9A84C, #F0D080)'
+                      : isUnlimited
+                      ? 'linear-gradient(135deg, #AAFF00, #88DD00)'
+                      : 'rgba(255,255,255,0.08)',
+                    color: plan.badge ? '#0A0A0A' : '#FFFFFF',
+                    border: plan.badge ? 'none' : '1px solid rgba(255,255,255,0.15)',
+                  }}
+                >
+                  CHOISIR CE PLAN
+                </Link>
+              </div>
+            );
+          })}
         </div>
+
+        {/* Legal note */}
+        <p className="text-white/30 text-xs text-center mt-10 leading-relaxed">
+          Les performances passées ne garantissent pas les performances futures.
+          Les paris sportifs comportent des risques. +18 uniquement.
+        </p>
       </div>
     </section>
   );
