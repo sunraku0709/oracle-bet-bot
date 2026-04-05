@@ -20,6 +20,7 @@ type Analysis = {
 type SubscriptionInfo = {
   plan: PlanId
   analyses_used: number
+  analyses_today: number
   current_period_end: string | null
 }
 
@@ -31,8 +32,8 @@ const SPORTS = [
 
 function UsageBadge({ sub }: { sub: SubscriptionInfo }) {
   const plan = PLANS[sub.plan]
-  const limit = plan.analysesPerMonth
-  const used = sub.analyses_used || 0
+  const limit = plan.analysesPerDay
+  const used = sub.analyses_today || 0
 
   if (limit === null) {
     return (
@@ -56,7 +57,7 @@ function UsageBadge({ sub }: { sub: SubscriptionInfo }) {
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
       <span className="text-xs font-semibold" style={{ color, fontFamily: "'Rajdhani', sans-serif" }}>
-        {remaining}/{limit}
+        {remaining}/{limit}/jr
       </span>
     </div>
   )
@@ -95,9 +96,18 @@ function DashboardContent() {
       .single()
 
     if (sub) {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { count } = await supabase
+        .from('analyses')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gte('created_at', todayStart.toISOString())
+
       setSubscription({
         plan: getPlanById(sub.plan),
         analyses_used: sub.analyses_used || 0,
+        analyses_today: count ?? 0,
         current_period_end: sub.current_period_end,
       })
     } else {
@@ -154,7 +164,7 @@ function DashboardContent() {
 
       if (!res.ok) {
         if (res.status === 403 && data.limitReached) {
-          setError(`Limite atteinte (${data.used}/${data.limit} analyses ce mois). Passez au plan supérieur.`)
+          setError(`Limite atteinte (${data.used}/${data.limit} analyses aujourd'hui). Passez au plan supérieur.`)
         } else if (res.status === 403) {
           setError('Abonnement requis.')
         } else {
@@ -192,9 +202,9 @@ function DashboardContent() {
 
   const canAnalyze = () => {
     if (!subscription) return false
-    const limit = PLANS[subscription.plan].analysesPerMonth
+    const limit = PLANS[subscription.plan].analysesPerDay
     if (limit === null) return true
-    return subscription.analyses_used < limit
+    return (subscription.analyses_today || 0) < limit
   }
 
   if (loading) {
@@ -231,8 +241,8 @@ function DashboardContent() {
                 S&apos;ABONNER
               </Link>
             )}
-            {subscription && PLANS[subscription.plan].analysesPerMonth !== null &&
-              subscription.analyses_used >= (PLANS[subscription.plan].analysesPerMonth ?? 0) && (
+            {subscription && PLANS[subscription.plan].analysesPerDay !== null &&
+              (subscription.analyses_today || 0) >= (PLANS[subscription.plan].analysesPerDay ?? 0) && (
               <Link href="/abonnement" className="btn-gold px-4 py-2 rounded-lg text-xs tracking-widest animate-pulse-gold">
                 UPGRADE
               </Link>
@@ -378,7 +388,7 @@ function DashboardContent() {
                       <span className="w-4 h-4 border-2 border-[#0A0A0A] border-t-transparent rounded-full animate-spin" />
                       ANALYSE EN COURS...
                     </span>
-                  ) : canAnalyze() ? '⚡ LANCER L\'ANALYSE IA' : 'LIMITE MENSUELLE ATTEINTE'}
+                  ) : canAnalyze() ? '⚡ LANCER L\'ANALYSE IA' : 'LIMITE JOURNALIÈRE ATTEINTE'}
                 </button>
 
                 {!canAnalyze() && subscription && (

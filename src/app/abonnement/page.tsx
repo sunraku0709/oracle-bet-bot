@@ -61,9 +61,9 @@ function PlanCard({
           <span className="text-gray-400 mb-1.5 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>/mois</span>
         </div>
         <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-          {plan.analysesPerMonth === null
+          {plan.analysesPerDay === null
             ? 'Analyses & pronostics illimités'
-            : `${plan.analysesPerMonth} analyse${plan.analysesPerMonth > 1 ? 's' : ''} + ${plan.analysesPerMonth} pronostic${plan.analysesPerMonth > 1 ? 's' : ''}/mois`}
+            : `${plan.analysesPerDay} analyse${plan.analysesPerDay > 1 ? 's' : ''}/jour · pronostics inclus`}
         </p>
       </div>
 

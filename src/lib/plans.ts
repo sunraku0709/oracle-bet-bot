@@ -5,7 +5,7 @@ export const PLANS: Record<PlanId, {
   name: string
   priceEur: number          // cents
   priceLabel: string
-  analysesPerMonth: number | null  // null = unlimited
+  analysesPerDay: number | null  // null = unlimited
   badge: string | null
   color: string
   features: string[]
@@ -15,12 +15,12 @@ export const PLANS: Record<PlanId, {
     name: 'STARTER',
     priceEur: 499,
     priceLabel: '4,99€',
-    analysesPerMonth: 1,
+    analysesPerDay: 1,
     badge: null,
     color: '#9CA3AF',
     features: [
-      '1 analyse complète par mois',
-      '1 pronostic structuré (10 points)',
+      '1 analyse complète par jour',
+      '1 pronostic structuré (10 points) par jour',
       'Classification GOLD / SILVER / NO BET',
       'Football, Basketball, Tennis',
       'Accès dashboard 24h/24',
@@ -31,12 +31,12 @@ export const PLANS: Record<PlanId, {
     name: 'STANDARD',
     priceEur: 999,
     priceLabel: '9,99€',
-    analysesPerMonth: 3,
+    analysesPerDay: 3,
     badge: 'POPULAIRE',
     color: '#C9A84C',
     features: [
-      '3 analyses complètes par mois',
-      '3 pronostics structurés (10 points)',
+      '3 analyses complètes par jour',
+      '2 pronostics structurés (10 points) par jour',
       'Classification GOLD / SILVER / NO BET',
       'Football, Basketball, Tennis',
       'Historique des analyses',
@@ -48,11 +48,11 @@ export const PLANS: Record<PlanId, {
     name: 'PREMIUM',
     priceEur: 1999,
     priceLabel: '19,99€',
-    analysesPerMonth: null,
+    analysesPerDay: null,
     badge: 'ILLIMITÉ',
     color: '#AAFF00',
     features: [
-      'Analyses & pronostics illimités',
+      'Analyses & pronostics illimités par jour',
       'Rapports structurés en 10 points',
       'Classification GOLD / SILVER / NO BET',
       'Football, Basketball, Tennis',
@@ -70,5 +70,5 @@ export function getPlanById(id: string | null | undefined): PlanId {
 }
 
 export function getAnalysesLimit(plan: PlanId): number | null {
-  return PLANS[plan].analysesPerMonth
+  return PLANS[plan].analysesPerDay
 }

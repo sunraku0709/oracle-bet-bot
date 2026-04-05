@@ -37,15 +37,26 @@ export async function POST(req: NextRequest) {
     const planId = getPlanById(subscription.plan)
     const limit = getAnalysesLimit(planId)
 
-    // Check usage limit (null = unlimited)
+    // Check daily usage limit (null = unlimited)
+    let usedToday = 0
     if (limit !== null) {
-      const used = subscription.analyses_used || 0
-      if (used >= limit) {
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+
+      const { count, error: countError } = await supabase
+        .from('analyses')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('created_at', todayStart.toISOString())
+
+      if (!countError) usedToday = count ?? 0
+
+      if (usedToday >= limit) {
         const planName = PLANS[planId].name
         return NextResponse.json({
-          error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/mois). Passez au plan supérieur pour continuer.`,
+          error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/jour). Passez au plan supérieur pour continuer.`,
           limitReached: true,
-          used,
+          used: usedToday,
           limit,
           plan: planId,
         }, { status: 403 })
@@ -170,7 +181,7 @@ RÈGLES ABSOLUES :
       }),
     ])
 
-    const remaining = limit === null ? null : limit - (subscription.analyses_used || 0) - 1
+    const remaining = limit === null ? null : limit - usedToday - 1
 
     return NextResponse.json({ result, remaining, plan: planId })
   } catch (error: unknown) {
