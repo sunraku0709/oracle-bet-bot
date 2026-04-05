@@ -47,10 +47,10 @@ export function Header() {
               SE CONNECTER
             </Link>
             <Link
-              href="/auth"
+              href="/abonnement"
               className="btn-gold px-4 py-2 text-sm rounded"
             >
-              ESSAI GRATUIT
+              S&apos;INSCRIRE
             </Link>
           </div>
 
@@ -101,11 +101,11 @@ export function Header() {
               SE CONNECTER
             </Link>
             <Link
-              href="/auth"
+              href="/abonnement"
               className="btn-gold px-4 py-2 text-sm rounded text-center"
               onClick={() => setMenuOpen(false)}
             >
-              ESSAI GRATUIT
+              S&apos;INSCRIRE
             </Link>
           </div>
         </div>
