@@ -19,16 +19,28 @@ export default function AuthPage() {
     setMessage(null)
 
     if (mode === 'register') {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
+      // Server-side signup: auto-confirms email immediately via admin API
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       })
-      if (error) {
-        setMessage({ type: 'error', text: error.message })
-      } else {
-        setMessage({ type: 'success', text: 'Inscription réussie ! Vérifiez votre email pour confirmer votre compte.' })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage({ type: 'error', text: data.error || 'Erreur lors de l\'inscription.' })
+        setLoading(false)
+        return
       }
+      // Auto sign-in after successful registration
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInError) {
+        setMessage({ type: 'success', text: 'Compte créé ! Connectez-vous maintenant.' })
+        setMode('login')
+        setLoading(false)
+        return
+      }
+      router.push('/dashboard')
+      return
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
