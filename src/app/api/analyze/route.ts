@@ -19,7 +19,18 @@ export async function POST(req: NextRequest) {
       .eq('status', 'active')
       .single()
 
-    if (subError || !subscription) {
+    if (subError) {
+      // Table missing → guide user to setup
+      if (subError.message?.includes('relation') || subError.code === 'PGRST205') {
+        return NextResponse.json({
+          error: 'Base de données non initialisée. Visitez /setup pour configurer les tables.',
+          setup: true,
+        }, { status: 503 })
+      }
+      return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
+    }
+
+    if (!subscription) {
       return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
     }
 
