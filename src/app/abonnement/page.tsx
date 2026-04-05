@@ -131,7 +131,7 @@ function AbonnementContent() {
 
   const handleSubscribe = async (planId: PlanId) => {
     if (!user) {
-      window.location.href = '/auth'
+      window.location.href = `/auth?plan=${planId}&mode=register`
       return
     }
 
