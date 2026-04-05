@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>Oracle Bet — PSG vs Marseille</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0A0A0A;
+    color: #fff;
+    font-family: 'Rajdhani', sans-serif;
+    width: 1200px;
+    margin: 0 auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  .bebas { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.06em; }
+  .gold { color: #C9A84C; }
+  .lime { color: #AAFF00; }
+  .gray { color: #9CA3AF; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    border-bottom: 1px solid rgba(201,168,76,0.18);
+    background: rgba(10,10,10,0.96);
+  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: 26px; letter-spacing: 0.08em; }
+  .badge-premium {
+    padding: 5px 14px; border-radius: 999px; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.18em; border: 1px solid rgba(170,255,0,0.4); color: #AAFF00;
+    background: rgba(170,255,0,0.05);
+  }
+  .btn-gold {
+    padding: 8px 18px; border-radius: 8px; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.12em; background: linear-gradient(135deg,#C9A84C,#F0D080);
+    color: #0A0A0A; border: none; cursor: pointer; text-decoration: none;
+    font-family: 'Rajdhani', sans-serif;
+  }
+
+  /* ── BODY ── */
+  .body { padding: 24px 32px; display: grid; grid-template-columns: 320px 1fr; gap: 20px; }
+
+  /* ── MATCH BANNER ── */
+  .match-banner {
+    grid-column: 1 / -1;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,168,76,0.3);
+    border-radius: 16px;
+    padding: 22px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 0 24px rgba(201,168,76,0.15);
+    position: relative;
+    overflow: hidden;
+  }
+  .match-banner::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, #C9A84C, transparent);
+  }
+  .teams { display: flex; align-items: center; gap: 20px; }
+  .team { text-align: center; }
+  .team-badge {
+    width: 52px; height: 52px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 22px;
+    margin: 0 auto 6px; border: 2px solid rgba(201,168,76,0.25);
+  }
+  .team-name { font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 0.06em; }
+  .vs-block { text-align: center; padding: 0 16px; }
+  .vs-label { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; color: #C9A84C; margin-bottom: 4px; }
+  .vs-text { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: rgba(255,255,255,0.12); }
+  .vs-date { font-size: 11px; color: #6B7280; margin-top: 3px; }
+  .match-right { display: flex; align-items: center; gap: 16px; }
+  .odds { display: flex; gap: 8px; }
+  .odd-box { text-align: center; padding: 8px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); }
+  .odd-label { font-size: 10px; font-weight: 700; letter-spacing: 0.15em; color: #6B7280; }
+  .odd-val { font-size: 16px; font-weight: 700; color: #fff; margin-top: 2px; }
+  .gold-badge {
+    padding: 12px 18px; border-radius: 12px; text-align: center;
+    background: linear-gradient(135deg,rgba(201,168,76,0.12),rgba(240,208,128,0.08));
+    border: 2px solid #C9A84C; box-shadow: 0 0 24px rgba(201,168,76,0.35);
+  }
+  .gold-badge .label { font-size: 9px; font-weight: 700; letter-spacing: 0.2em; color: rgba(201,168,76,0.65); }
+  .gold-badge .value { font-family: 'Bebas Neue', sans-serif; font-size: 30px; color: #C9A84C; letter-spacing: 0.1em; line-height: 1; }
+  .gold-badge .pct { font-size: 11px; font-weight: 700; color: #C9A84C; margin-top: 2px; }
+
+  /* ── CARDS ── */
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,168,76,0.13);
+    border-radius: 14px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+  }
+  .card:last-child { margin-bottom: 0; }
+  .card-title { font-family: 'Bebas Neue', sans-serif; font-size: 17px; letter-spacing: 0.06em; color: #C9A84C; margin-bottom: 14px; }
+  .card-title.lime { color: #AAFF00; }
+
+  /* Data rows */
+  .data-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+  .data-row:last-child { border-bottom: none; }
+  .data-label { color: #6B7280; font-weight: 600; letter-spacing: 0.1em; font-size: 11px; }
+  .data-val { color: #fff; font-weight: 600; }
+
+  /* Probability bars */
+  .prob-row { margin-bottom: 11px; }
+  .prob-row:last-child { margin-bottom: 0; }
+  .prob-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; font-weight: 600; }
+  .prob-bar-bg { height: 7px; background: rgba(255,255,255,0.05); border-radius: 99px; overflow: hidden; }
+  .prob-bar-fill { height: 100%; border-radius: 99px; }
+
+  /* Bets */
+  .bet-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .bet-row:last-child { border-bottom: none; }
+  .bet-num { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: rgba(255,255,255,0.1); width: 28px; flex-shrink: 0; }
+  .bet-info { flex: 1; }
+  .bet-name { font-size: 13px; font-weight: 700; color: #fff; }
+  .bet-note { font-size: 11px; color: #6B7280; margin-top: 1px; }
+  .bet-cote { font-size: 13px; font-weight: 700; padding: 4px 9px; border-radius: 6px; }
+
+  /* ── REPORT ── */
+  .report-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,168,76,0.13);
+    border-radius: 14px;
+    padding: 22px 24px;
+    height: fit-content;
+  }
+  .report-header { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 14px; border-bottom: 1px solid rgba(201,168,76,0.12); margin-bottom: 18px; }
+  .report-title { font-family: 'Bebas Neue', sans-serif; font-size: 22px; color: #C9A84C; letter-spacing: 0.06em; }
+  .report-meta { font-size: 11px; color: #6B7280; margin-top: 3px; }
+  .badges { display: flex; gap: 8px; }
+  .badge-gold { padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; background: linear-gradient(135deg,#C9A84C,#F0D080); color: #0A0A0A; }
+  .badge-value { padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; border: 1px solid rgba(170,255,0,0.4); color: #AAFF00; background: rgba(170,255,0,0.05); }
+
+  /* Analysis text */
+  .section-title { font-family: 'Bebas Neue', sans-serif; font-size: 15px; color: #C9A84C; letter-spacing: 0.07em; margin-top: 18px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid rgba(201,168,76,0.12); }
+  .section-title:first-child { margin-top: 0; }
+  .para { font-size: 12.5px; color: #D1D5DB; line-height: 1.75; margin-bottom: 5px; }
+  .para.accent { color: rgba(201,168,76,0.85); font-weight: 600; }
+  .para.warn { color: #FB923C; }
+  .para.lime { color: #AAFF00; font-weight: 700; font-size: 13px; }
+  .highlight { color: #C9A84C; font-weight: 700; }
+
+  /* Footer */
+  .report-footer { margin-top: 20px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between; }
+  .disclaimer { font-size: 10px; color: #4B5563; max-width: 420px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo"><span class="gold">⚡ ORACLE</span> BET</div>
+  <div style="display:flex;align-items:center;gap:12px">
+    <span class="badge-premium">∞ ILLIMITÉ · PREMIUM</span>
+    <a class="btn-gold" href="#">S'ABONNER</a>
+  </div>
+</div>
+
+<div class="body">
+
+  <!-- MATCH BANNER -->
+  <div class="match-banner">
+    <div class="teams">
+      <div class="team">
+        <div class="team-badge" style="background:#004494">🔵</div>
+        <div class="team-name">PSG</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:2px">Paris Saint-Germain</div>
+      </div>
+      <div class="vs-block">
+        <div class="vs-label">LIGUE 1 · CLASSICO</div>
+        <div class="vs-text">VS</div>
+        <div class="vs-date">Dim. 6 Avril 2026 · 21:00</div>
+      </div>
+      <div class="team">
+        <div class="team-badge" style="background:#009EDB">🔵</div>
+        <div class="team-name">OM</div>
+        <div style="font-size:11px;color:#6B7280;margin-top:2px">Olympique de Marseille</div>
+      </div>
+    </div>
+    <div class="match-right">
+      <div class="odds">
+        <div class="odd-box"><div class="odd-label">1</div><div class="odd-val gold">1.42</div></div>
+        <div class="odd-box"><div class="odd-label">X</div><div class="odd-val">4.10</div></div>
+        <div class="odd-box"><div class="odd-label">2</div><div class="odd-val">6.50</div></div>
+      </div>
+      <div class="gold-badge">
+        <div class="label">ORACLE</div>
+        <div class="value">GOLD</div>
+        <div class="pct">✦ 71%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEFT COLUMN -->
+  <div>
+    <!-- Match data -->
+    <div class="card">
+      <div class="card-title">DONNÉES DU MATCH</div>
+      <div class="data-row"><span class="data-label">SPORT</span><span class="data-val">Football ⚽</span></div>
+      <div class="data-row"><span class="data-label">COMPÉTITION</span><span class="data-val">Ligue 1</span></div>
+      <div class="data-row"><span class="data-label">DOMICILE</span><span class="data-val gold">Paris Saint-Germain</span></div>
+      <div class="data-row"><span class="data-label">EXTÉRIEUR</span><span class="data-val">Olympique de Marseille</span></div>
+      <div class="data-row"><span class="data-label">DATE</span><span class="data-val">Dim. 6 Avril 2026</span></div>
+      <div class="data-row"><span class="data-label">COTE 1</span><span class="data-val gold">1.42</span></div>
+      <div class="data-row"><span class="data-label">COTE X</span><span class="data-val">4.10</span></div>
+      <div class="data-row"><span class="data-label">COTE 2</span><span class="data-val">6.50</span></div>
+    </div>
+
+    <!-- Probabilities -->
+    <div class="card">
+      <div class="card-title">PROBABILITÉS ORACLE</div>
+      <div class="prob-row">
+        <div class="prob-header"><span style="color:#D1D5DB;font-size:12px">Victoire PSG</span><span style="color:#C9A84C;font-size:12px;font-weight:700">71%</span></div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:71%;background:#C9A84C"></div></div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-header"><span style="color:#D1D5DB;font-size:12px">Match nul</span><span style="color:#9CA3AF;font-size:12px;font-weight:700">18%</span></div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:18%;background:#9CA3AF"></div></div>
+      </div>
+      <div class="prob-row">
+        <div class="prob-header"><span style="color:#D1D5DB;font-size:12px">Victoire OM</span><span style="color:#3B82F6;font-size:12px;font-weight:700">11%</span></div>
+        <div class="prob-bar-bg"><div class="prob-bar-fill" style="width:11%;background:#3B82F6"></div></div>
+      </div>
+    </div>
+
+    <!-- Top 3 bets -->
+    <div class="card">
+      <div class="card-title lime">TOP PARIS IA</div>
+      <div class="bet-row">
+        <span class="bet-num">01</span>
+        <div class="bet-info"><div class="bet-name">Victoire PSG</div><div class="bet-note">Valeur confirmée · dominant à domicile</div></div>
+        <span class="bet-cote" style="color:#C9A84C;background:rgba(201,168,76,0.1)">1.42</span>
+      </div>
+      <div class="bet-row">
+        <span class="bet-num">02</span>
+        <div class="bet-info"><div class="bet-name">Mbappé buteur</div><div class="bet-note">Flanc gauche OM affaibli (Kolasinac absent)</div></div>
+        <span class="bet-cote" style="color:#C9A84C;background:rgba(201,168,76,0.1)">1.75</span>
+      </div>
+      <div class="bet-row">
+        <span class="bet-num">03</span>
+        <div class="bet-info"><div class="bet-name">Plus de 2.5 buts</div><div class="bet-note">PSG 2.8 xG/match · match ouvert</div></div>
+        <span class="bet-cote" style="color:#9CA3AF;background:rgba(156,163,175,0.1)">1.55</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: REPORT -->
+  <div class="report-card">
+    <div class="report-header">
+      <div>
+        <div class="report-title">RAPPORT D'ANALYSE IA</div>
+        <div class="report-meta">Généré le 06/04/2026 · 14h32 · PSG vs Marseille · Ligue 1</div>
+      </div>
+      <div class="badges">
+        <span class="badge-gold">✦ GOLD</span>
+        <span class="badge-value">VALUE BET</span>
+      </div>
+    </div>
+
+    <div class="section-title">1. FORME RÉCENTE (5 DERNIERS MATCHS)</div>
+    <p class="para"><span class="highlight">PSG : VVVDV</span> — Forme excellente, 4 victoires sur 5. 18 buts marqués, 4 encaissés. Leader Ligue 1 avec 8 pts d'avance. Dernière sortie : victoire 3-0 contre Lyon (xG 3.2 / xGA 0.4). Mbappé à 100% après sa blessure.</p>
+    <p class="para"><span class="highlight">Marseille : DVLDV</span> — Forme irrégulière. 9 buts marqués, 7 encaissés. Double calendrier Ligue 1 / Europa. Victoire laborieuse 2-1 face à Rennes, décision à la 88e min.</p>
+
+    <div class="section-title">2. H2H</div>
+    <p class="para">Sur 8 confrontations, PSG 5 victoires, OM 1, 2 nuls. Au Parc des Princes : PSG invaincu sur 6 derniers Classico (5V, 1N). Marseille marque tout de même dans 60% des confrontations.</p>
+
+    <div class="section-title">3. STYLE DE JEU + FORCES / FAIBLESSES</div>
+    <p class="para"><span class="highlight">PSG :</span> Transitions rapides, Mbappé-Dembélé-Barcola en attaque. Force : vitesse en contre. Faiblesse : défense haute, vulnérable aux longs ballons.</p>
+    <p class="para"><span class="highlight">Marseille :</span> Pressing haut (Gasset). Force : Aubameyang en pointe (12 buts). Faiblesse : charnière exposée sur les transitions rapides.</p>
+
+    <div class="section-title">4. ABSENCES ET IMPACT RÉEL</div>
+    <p class="para"><span class="highlight">PSG :</span> Renato Sanches (genou) — impact limité, remplacé par Zaïre-Emery.</p>
+    <p class="para warn">⚠ <span class="highlight">Marseille :</span> Kolasinac (suspension) — impact MAJEUR, meilleur défenseur marseilais. Flanc gauche directement exposé à Barcola et Dembélé. Luis Henrique (cuisse) incertain.</p>
+
+    <div class="section-title">5. CALENDRIER + CONTEXTE PHYSIQUE</div>
+    <p class="para"><span class="highlight">PSG :</span> 5 jours de repos — aucune fatigue notable, rotation efficace.</p>
+    <p class="para warn">⚠ <span class="highlight">Marseille :</span> Jeudi-Dimanche — victoire contre l'Ajax en Ligue Europa (2-1, prolongations). 7 titulaires du Classico ont joué 120 min il y a 3 jours. Baisse de régime prévisible après 60 min.</p>
+
+    <div class="section-title">6. ENJEUX + DÉCLARATIONS</div>
+    <p class="para"><span class="highlight">PSG</span> peut creuser jusqu'à 11 pts d'avance. Motivation maximale avant trêve internationale.</p>
+    <p class="para accent">"C'est le match le plus important de la saison. Nous sommes prêts, concentrés." — <em>Luis Enrique</em></p>
+    <p class="para accent">"On arrive avec de la fatigue mais aussi de la confiance. On va les surprendre." — <em>Gasset</em></p>
+
+    <div class="section-title">7. STATISTIQUES AVANCÉES (xG)</div>
+    <p class="para">
+      <span class="highlight">PSG :</span> xG moy. 2.8 · xGA 0.7 · 8.4 tirs cadrés/match · 6 clean sheets sur 10 derniers matchs à domicile.<br>
+      <span class="highlight">Marseille :</span> xG moy. 1.6 · xGA 1.4 · 5.1 tirs cadrés/match · 3 clean sheets sur 10 derniers déplacements.
+    </p>
+
+    <div class="section-title">8. RED FLAGS</div>
+    <p class="para warn">⚠ Marseille joue son 4e match en 10 jours — chute de rendement attendue après 60 minutes.</p>
+    <p class="para warn">⚠ Absence Kolasinac = flanc gauche marseilais directement exposé à Barcola/Dembélé.</p>
+    <p class="para warn">⚠ Cotes PSG (-215) : surconfiance du marché — value résiduelle sur OM +0.5 (note informationnelle).</p>
+
+    <div class="section-title">9. SYNTHÈSE FINALE + PRONOSTIC</div>
+    <p class="para">Éléments décisifs : supériorité technique nette · fatigue marseillaise post-Europa · flanc gauche exposé · Mbappé face à défense affaiblie · Parc des Princes électrique.</p>
+    <p class="para lime">Victoire PSG : 71% · Nul : 18% · Victoire OM : 11%</p>
+    <p class="para lime">VALUE BET : OUI — Victoire PSG sur les deux mi-temps (cote 1.85) sous-estimée vue la fatigue en 2e mi-temps.</p>
+    <p class="para" style="margin-top:8px">
+      <span style="color:#C9A84C;font-weight:700">1.</span> Victoire PSG — <span class="highlight">1.42</span> — probabilité réelle 71%<br>
+      <span style="color:#C9A84C;font-weight:700">2.</span> Mbappé buteur — <span class="highlight">1.75</span> — 4 buts / 5 derniers matchs à domicile<br>
+      <span style="color:#C9A84C;font-weight:700">3.</span> Plus de 2.5 buts — <span class="highlight">1.55</span> — match ouvert, PSG 2.8 xG/match
+    </p>
+    <div style="margin-top:14px;display:inline-flex;align-items:center;gap:10px;padding:10px 20px;border-radius:10px;background:linear-gradient(135deg,rgba(201,168,76,0.12),rgba(240,208,128,0.06));border:2px solid #C9A84C;box-shadow:0 0 20px rgba(201,168,76,0.3)">
+      <span style="font-family:'Bebas Neue',sans-serif;font-size:28px;color:#C9A84C;letter-spacing:0.08em">CLASSIFICATION : GOLD ✦</span>
+      <span style="font-size:12px;font-weight:700;letter-spacing:0.15em;color:#AAFF00;border:1px solid rgba(170,255,0,0.4);padding:4px 10px;border-radius:6px">FIABILITÉ 71%</span>
+    </div>
+
+    <div class="report-footer">
+      <p class="disclaimer">⚠️ Analyse fournie à titre informatif uniquement. Les paris sportifs comportent des risques financiers. Interdit aux mineurs de moins de 18 ans. Joueurs Info Service : 09 74 75 13 13</p>
+      <a class="btn-gold" href="/abonnement" style="font-size:11px;padding:9px 16px;white-space:nowrap">ACCÉDER À MES ANALYSES →</a>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
