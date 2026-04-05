@@ -65,17 +65,21 @@ function AuthContent() {
   }, [searchParams])
 
   const redirectToCheckout = async (planId: PlanId) => {
-    const res = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan: planId }),
-    })
-    const data = await res.json()
-    if (data.url) {
-      window.location.href = data.url
-    } else {
-      router.push('/dashboard')
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planId }),
+      })
+      const data = await res.json()
+      if (data.url) {
+        window.location.href = data.url
+        return
+      }
+    } catch {
+      // Stripe unavailable — go to dashboard anyway
     }
+    router.push('/dashboard')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -83,44 +87,54 @@ function AuthContent() {
     setLoading(true)
     setMessage(null)
 
-    if (mode === 'register') {
-      const res = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setMessage({ type: 'error', text: data.error || "Erreur lors de l'inscription." })
-        setLoading(false)
-        return
-      }
-      // Auto sign-in
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-      if (signInError) {
-        setMessage({ type: 'success', text: 'Compte créé ! Connectez-vous maintenant.' })
-        setMode('login')
-        setLoading(false)
-        return
-      }
-      // Redirect to Stripe checkout with selected plan
-      await redirectToCheckout(selectedPlan)
-      return
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setMessage({ type: 'error', text: 'Email ou mot de passe incorrect.' })
-        setLoading(false)
-        return
-      }
-      // If a plan was passed in URL, go to checkout; otherwise dashboard
-      const planParam = searchParams.get('plan')
-      if (planParam) {
-        await redirectToCheckout(getPlanById(planParam))
+    try {
+      if (mode === 'register') {
+        const res = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        })
+        const data = await res.json()
+        if (!res.ok) {
+          setMessage({ type: 'error', text: data.error || "Erreur lors de l'inscription." })
+          setLoading(false)
+          return
+        }
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (signInError) {
+          setMessage({ type: 'success', text: 'Compte créé ! Connectez-vous maintenant.' })
+          setMode('login')
+          setLoading(false)
+          return
+        }
+        await redirectToCheckout(selectedPlan)
       } else {
-        router.push('/dashboard')
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) {
+          const msg = error.message?.toLowerCase() || ''
+          if (msg.includes('invalid') || msg.includes('credentials')) {
+            setMessage({ type: 'error', text: 'Email ou mot de passe incorrect.' })
+          } else if (msg.includes('email') && msg.includes('confirm')) {
+            setMessage({ type: 'error', text: 'Email non confirmé. Contactez le support.' })
+          } else if (msg.includes('network') || msg.includes('fetch')) {
+            setMessage({ type: 'error', text: 'Erreur réseau. Vérifiez votre connexion.' })
+          } else {
+            setMessage({ type: 'error', text: error.message || 'Erreur de connexion.' })
+          }
+          setLoading(false)
+          return
+        }
+        const planParam = searchParams.get('plan')
+        if (planParam) {
+          await redirectToCheckout(getPlanById(planParam))
+        } else {
+          router.push('/dashboard')
+        }
       }
-      return
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
+      setMessage({ type: 'error', text: 'Erreur réseau : ' + msg })
+      setLoading(false)
     }
   }
 
