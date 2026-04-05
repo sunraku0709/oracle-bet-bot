@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
+import { getPlanById, getAnalysesLimit, PLANS } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
   try {
@@ -10,16 +11,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
     }
 
-    // Check active subscription
+    // Fetch subscription with plan info
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
-      .select('status')
+      .select('status, plan, analyses_used, billing_period_start, current_period_end')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single()
 
     if (subError || !subscription) {
       return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
+    }
+
+    const planId = getPlanById(subscription.plan)
+    const limit = getAnalysesLimit(planId)
+
+    // Check usage limit (null = unlimited)
+    if (limit !== null) {
+      const used = subscription.analyses_used || 0
+      if (used >= limit) {
+        const planName = PLANS[planId].name
+        return NextResponse.json({
+          error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/mois). Passez au plan supérieur pour continuer.`,
+          limitReached: true,
+          used,
+          limit,
+          plan: planId,
+        }, { status: 403 })
+      }
     }
 
     const body = await req.json()
@@ -103,10 +122,7 @@ RÈGLES ABSOLUES :
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash',
-      generationConfig: {
-        temperature: 0.4,
-        maxOutputTokens: 2048,
-      },
+      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
     })
 
     const geminiResult = await model.generateContent(prompt)
@@ -116,23 +132,36 @@ RÈGLES ABSOLUES :
       return NextResponse.json({ error: 'L\'IA n\'a pas retourné de résultat' }, { status: 500 })
     }
 
-    // Save to database (best-effort – don't fail the request if save fails)
-    await supabase.from('analyses').insert({
-      user_id: user.id,
-      home_team: homeTeam.trim(),
-      away_team: awayTeam.trim(),
-      sport,
-      competition: competition || sport,
-      match_date: matchDate || new Date().toISOString().split('T')[0],
-      odds_home: oddsHome || null,
-      odds_draw: oddsDraw || null,
-      odds_away: oddsAway || null,
-      result,
-    }).then(({ error }) => {
-      if (error) console.error('Save analysis error:', error.message)
-    })
+    // Increment analyses_used and save analysis (parallel)
+    const adminClient = (await import('@supabase/supabase-js')).createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
-    return NextResponse.json({ result })
+    await Promise.all([
+      // Increment counter
+      adminClient.from('subscriptions')
+        .update({ analyses_used: (subscription.analyses_used || 0) + 1, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id),
+      // Save analysis
+      adminClient.from('analyses').insert({
+        user_id: user.id,
+        home_team: homeTeam.trim(),
+        away_team: awayTeam.trim(),
+        sport,
+        competition: competition || sport,
+        match_date: matchDate || new Date().toISOString().split('T')[0],
+        odds_home: oddsHome || null,
+        odds_draw: oddsDraw || null,
+        odds_away: oddsAway || null,
+        result,
+      }),
+    ])
+
+    const remaining = limit === null ? null : limit - (subscription.analyses_used || 0) - 1
+
+    return NextResponse.json({ result, remaining, plan: planId })
   } catch (error: unknown) {
     console.error('Analyze error:', error)
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
