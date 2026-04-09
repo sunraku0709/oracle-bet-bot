@@ -3,86 +3,83 @@ import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getPlanById, getAnalysesLimit, PLANS } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
-  try {
-    const supabase = await createSupabaseServerClient()
-    const { data: { user } } = await supabase.auth.getUser()
+try {
+const supabase = await createSupabaseServerClient()
+const { data: { user } } = await supabase.auth.getUser()
 
-    if (!user) {
-      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
-    }
+if (!user) {
+return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
+}
 
-    // Fetch subscription with plan info
-    const { data: subscription, error: subError } = await supabase
-      .from('subscriptions')
-      .select('status, plan, analyses_used, billing_period_start, current_period_end')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .single()
+const { data: subscription, error: subError } = await supabase
+.from('subscriptions')
+.select('status, plan, analyses_used, billing_period_start, current_period_end')
+.eq('user_id', user.id)
+.eq('status', 'active')
+.single()
 
-    if (subError) {
-      // Table missing → guide user to setup
-      if (subError.message?.includes('relation') || subError.code === 'PGRST205') {
-        return NextResponse.json({
-          error: 'Base de données non initialisée. Visitez /setup pour configurer les tables.',
-          setup: true,
-        }, { status: 503 })
-      }
-      return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
-    }
+if (subError) {
+if (subError.message?.includes('relation') || subError.code === 'PGRST205') {
+return NextResponse.json({
+error: 'Base de données non initialisée. Visitez /setup pour configurer les tables.',
+setup: true,
+}, { status: 503 })
+}
+return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
+}
 
-    if (!subscription) {
-      return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
-    }
+if (!subscription) {
+return NextResponse.json({ error: 'Abonnement requis' }, { status: 403 })
+}
 
-    const planId = getPlanById(subscription.plan)
-    const limit = getAnalysesLimit(planId)
+const planId = getPlanById(subscription.plan)
+const limit = getAnalysesLimit(planId)
 
-    // Check daily usage limit (null = unlimited)
-    let usedToday = 0
-    if (limit !== null) {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+let usedToday = 0
+if (limit !== null) {
+const todayStart = new Date()
+todayStart.setHours(0, 0, 0, 0)
 
-      const { count, error: countError } = await supabase
-        .from('analyses')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('created_at', todayStart.toISOString())
+const { count, error: countError } = await supabase
+.from('analyses')
+.select('id', { count: 'exact', head: true })
+.eq('user_id', user.id)
+.gte('created_at', todayStart.toISOString())
 
-      if (!countError) usedToday = count ?? 0
+if (!countError) usedToday = count ?? 0
 
-      if (usedToday >= limit) {
-        const planName = PLANS[planId].name
-        return NextResponse.json({
-          error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/jour). Passez au plan supérieur pour continuer.`,
-          limitReached: true,
-          used: usedToday,
-          limit,
-          plan: planId,
-        }, { status: 403 })
-      }
-    }
+if (usedToday >= limit) {
+const planName = PLANS[planId].name
+return NextResponse.json({
+error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/jour). Passez au plan supérieur pour continuer.`,
+limitReached: true,
+used: usedToday,
+limit,
+plan: planId,
+}, { status: 403 })
+}
+}
 
-    const body = await req.json()
-    const { homeTeam, awayTeam, sport, competition, matchDate, oddsHome, oddsDraw, oddsAway } = body
+const body = await req.json()
+const { homeTeam, awayTeam, sport, competition, matchDate, oddsHome, oddsDraw, oddsAway } = body
 
-    if (!homeTeam?.trim() || !awayTeam?.trim() || !sport) {
-      return NextResponse.json({ error: 'Équipe domicile, équipe extérieure et sport sont requis' }, { status: 400 })
-    }
+if (!homeTeam?.trim() || !awayTeam?.trim() || !sport) {
+return NextResponse.json({ error: 'Équipe domicile, équipe extérieure et sport sont requis' }, { status: 400 })
+}
 
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY non configurée' }, { status: 500 })
-    }
+if (!process.env.ANTHROPIC_API_KEY) {
+return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500 })
+}
 
-    const oddsSection = (oddsHome || oddsDraw || oddsAway)
-      ? `COTES EN TEMPS REEL (Bet365 | Unibet) : Domicile ${oddsHome || 'N/A'} / Nul ${oddsDraw || 'N/A'} / Extérieur ${oddsAway || 'N/A'}`
-      : 'COTES EN TEMPS REEL : Non renseignées'
+const oddsSection = (oddsHome || oddsDraw || oddsAway)
+? `COTES EN TEMPS REEL (Bet365 | Unibet) : Domicile ${oddsHome || 'N/A'} / Nul ${oddsDraw || 'N/A'} / Extérieur ${oddsAway || 'N/A'}`
+: 'COTES EN TEMPS REEL : Non renseignées'
 
-    const dateStr = matchDate
-      ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-      : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const dateStr = matchDate
+? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+: new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
-    const prompt = `Tu es Team Oracle Bet, assistant d'analyse sportive ultra-structuré et pronostiqueur expert.
+const prompt = `Tu es Team Oracle Bet, assistant d'analyse sportive ultra-structuré et pronostiqueur expert.
 Fiabilité minimum : 65%.
 
 MATCH : ${homeTeam} vs ${awayTeam}
@@ -140,56 +137,54 @@ RÈGLES ABSOLUES :
 - Si info absente : indiquer "Aucune source fiable disponible"
 - Rapport entre 800 et 1200 mots`
 
-    const { GoogleGenerativeAI } = await import('@google/generative-ai')
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
-      generationConfig: { temperature: 0.4, maxOutputTokens: 2048 },
-    })
+const Anthropic = (await import('@anthropic-ai/sdk')).default
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const geminiResult = await model.generateContent(prompt)
-    const result = geminiResult.response.text()
+const message = await client.messages.create({
+model: 'claude-sonnet-4-5',
+max_tokens: 2048,
+messages: [{ role: 'user', content: prompt }],
+})
 
-    if (!result) {
-      return NextResponse.json({ error: 'L\'IA n\'a pas retourné de résultat' }, { status: 500 })
-    }
+const result = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    // Increment analyses_used and save analysis (parallel)
-    const adminClient = (await import('@supabase/supabase-js')).createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
+if (!result) {
+return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500 })
+}
 
-    await Promise.all([
-      // Increment counter
-      adminClient.from('subscriptions')
-        .update({ analyses_used: (subscription.analyses_used || 0) + 1, updated_at: new Date().toISOString() })
-        .eq('user_id', user.id),
-      // Save analysis
-      adminClient.from('analyses').insert({
-        user_id: user.id,
-        home_team: homeTeam.trim(),
-        away_team: awayTeam.trim(),
-        sport,
-        competition: competition || sport,
-        match_date: matchDate || new Date().toISOString().split('T')[0],
-        odds_home: oddsHome || null,
-        odds_draw: oddsDraw || null,
-        odds_away: oddsAway || null,
-        result,
-      }),
-    ])
+const adminClient = (await import('@supabase/supabase-js')).createClient(
+process.env.NEXT_PUBLIC_SUPABASE_URL!,
+process.env.SUPABASE_SERVICE_ROLE_KEY!,
+{ auth: { autoRefreshToken: false, persistSession: false } }
+)
 
-    const remaining = limit === null ? null : limit - usedToday - 1
+await Promise.all([
+adminClient.from('subscriptions')
+.update({ analyses_used: (subscription.analyses_used || 0) + 1, updated_at: new Date().toISOString() })
+.eq('user_id', user.id),
+adminClient.from('analyses').insert({
+user_id: user.id,
+home_team: homeTeam.trim(),
+away_team: awayTeam.trim(),
+sport,
+competition: competition || sport,
+match_date: matchDate || new Date().toISOString().split('T')[0],
+odds_home: oddsHome || null,
+odds_draw: oddsDraw || null,
+odds_away: oddsAway || null,
+result,
+}),
+])
 
-    return NextResponse.json({ result, remaining, plan: planId })
-  } catch (error: unknown) {
-    console.error('Analyze error:', error)
-    const msg = error instanceof Error ? error.message : 'Erreur inconnue'
-    if (msg.includes('API_KEY') || msg.includes('API key')) {
-      return NextResponse.json({ error: 'Clé GEMINI_API_KEY invalide ou non configurée' }, { status: 500 })
-    }
-    return NextResponse.json({ error: 'Erreur serveur : ' + msg }, { status: 500 })
-  }
+const remaining = limit === null ? null : limit - usedToday - 1
+
+return NextResponse.json({ result, remaining, plan: planId })
+} catch (error: unknown) {
+console.error('Analyze error:', error)
+const msg = error instanceof Error ? error.message : 'Erreur inconnue'
+if (msg.includes('API_KEY') || msg.includes('API key')) {
+return NextResponse.json({ error: 'Clé ANTHROPIC_API_KEY invalide ou non configurée' }, { status: 500 })
+}
+return NextResponse.json({ error: 'Erreur serveur : ' + msg }, { status: 500 })
+}
 }
