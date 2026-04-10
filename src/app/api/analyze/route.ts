@@ -2,10 +2,37 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getPlanById, getAnalysesLimit, PLANS } from '@/lib/plans'
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    },
+  })
+}
+
 export async function POST(req: NextRequest) {
 try {
+// Support both cookie-based sessions (web) and Bearer token (mobile)
+let user = null
+const authHeader = req.headers.get('Authorization')
+if (authHeader?.startsWith('Bearer ')) {
+const token = authHeader.slice(7)
+const { createClient } = await import('@supabase/supabase-js')
+const anonClient = createClient(
+process.env.NEXT_PUBLIC_SUPABASE_URL!,
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+{ auth: { autoRefreshToken: false, persistSession: false } }
+)
+const { data } = await anonClient.auth.getUser(token)
+user = data.user
+} else {
 const supabase = await createSupabaseServerClient()
-const { data: { user } } = await supabase.auth.getUser()
+const { data } = await supabase.auth.getUser()
+user = data.user
+}
 
 if (!user) {
 return NextResponse.json({ error: 'Non authentifié' }, { status: 401 })
@@ -178,13 +205,15 @@ result,
 
 const remaining = limit === null ? null : limit - usedToday - 1
 
-return NextResponse.json({ result, remaining, plan: planId })
+const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
+return NextResponse.json({ result, remaining, plan: planId }, { headers: corsHeaders })
 } catch (error: unknown) {
 console.error('Analyze error:', error)
 const msg = error instanceof Error ? error.message : 'Erreur inconnue'
+const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
 if (msg.includes('API_KEY') || msg.includes('API key')) {
-return NextResponse.json({ error: 'Clé ANTHROPIC_API_KEY invalide ou non configurée' }, { status: 500 })
+return NextResponse.json({ error: 'Clé ANTHROPIC_API_KEY invalide ou non configurée' }, { status: 500, headers: corsHeaders })
 }
-return NextResponse.json({ error: 'Erreur serveur : ' + msg }, { status: 500 })
+return NextResponse.json({ error: 'Erreur serveur : ' + msg }, { status: 500, headers: corsHeaders })
 }
 }
