@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
+import { PLANS, type PlanId } from '@/lib/plans'
 
 function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: PlanId) => void }) {
   return (
@@ -12,8 +12,8 @@ function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: Pl
       <p className="text-xs font-semibold text-gray-400 mb-3 tracking-widest text-center" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
         CHOISISSEZ VOTRE FORFAIT
       </p>
-      <div className="grid grid-cols-3 gap-2">
-        {(['starter', 'standard', 'premium'] as PlanId[]).map((planId) => {
+      <div className="grid grid-cols-2 gap-2">
+        {(['standard', 'premium'] as PlanId[]).map((planId) => {
           const plan = PLANS[planId]
           const isSelected = selected === planId
           return (
@@ -47,7 +47,8 @@ function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: Pl
 function AuthContent() {
   const searchParams = useSearchParams()
   const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login'
-  const initialPlan = getPlanById(searchParams.get('plan'))
+  const rawPlan = searchParams.get('plan')
+  const initialPlan: PlanId = (rawPlan === 'premium') ? 'premium' : 'standard'
 
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const [selectedPlan, setSelectedPlan] = useState<PlanId>(initialPlan)
@@ -60,7 +61,7 @@ function AuthContent() {
   // Keep plan in sync when URL changes
   useEffect(() => {
     const plan = searchParams.get('plan')
-    if (plan) setSelectedPlan(getPlanById(plan))
+    if (plan) setSelectedPlan(plan === 'premium' ? 'premium' : 'standard')
     if (searchParams.get('mode') === 'register') setMode('register')
   }, [searchParams])
 
@@ -126,7 +127,7 @@ function AuthContent() {
         }
         const planParam = searchParams.get('plan')
         if (planParam) {
-          await redirectToCheckout(getPlanById(planParam))
+          await redirectToCheckout(initialPlan)
         } else {
           router.push('/dashboard')
         }
@@ -200,7 +201,7 @@ function AuthContent() {
         {mode === 'login' && searchParams.get('plan') && (
           <div className="mb-4 p-3 rounded-xl border border-[#C9A84C]/30 bg-[#C9A84C]/5 text-center">
             <p className="text-xs text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              Connectez-vous pour activer le plan <strong>{PLANS[getPlanById(searchParams.get('plan'))].name}</strong> — {PLANS[getPlanById(searchParams.get('plan'))].priceLabel}/mois
+              Connectez-vous pour activer le plan <strong>{PLANS[initialPlan].name}</strong> — {PLANS[initialPlan].priceLabel}/mois
             </p>
           </div>
         )}

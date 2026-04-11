@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
     stripe_subscription_id: 'test_sub_' + userId.slice(0, 8),
     status: 'active',
     plan: 'premium',
+    daily_limit: -1,   // -1 = unlimited (premium)
     analyses_used: 0,
     billing_period_start: now.toISOString(),
     current_period_end: oneYearFromNow.toISOString(),

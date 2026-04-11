@@ -95,8 +95,8 @@ function PlanCard({
               : plan.badge === 'ILLIMITÉ'
               ? 'linear-gradient(135deg, #AAFF00, #88DD00)'
               : 'rgba(255,255,255,0.08)',
-            color: plan.badge ? '#0A0A0A' : '#FFFFFF',
-            border: plan.badge ? 'none' : '1px solid rgba(255,255,255,0.15)',
+            color: '#0A0A0A',
+            border: 'none',
           }}
         >
           {isBusy ? 'REDIRECTION...' : 'CHOISIR CE PLAN'}
@@ -204,9 +204,9 @@ function AbonnementContent() {
           </p>
         </div>
 
-        {/* 3 Plan cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {(['starter', 'standard', 'premium'] as PlanId[]).map(planId => (
+        {/* 2 Plan cards — centred */}
+        <div className="flex flex-col md:flex-row justify-center gap-8 max-w-3xl mx-auto">
+          {(['standard', 'premium'] as PlanId[]).map(planId => (
             <PlanCard
               key={planId}
               planId={planId}
