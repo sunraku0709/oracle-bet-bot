@@ -41,13 +41,14 @@ export default function InstallSection() {
     if (!isStandalone) {
       const detected = detectOS()
       setOs(detected)
+      // Pre-select the tab matching the visitor's device; default to iOS on desktop
       setTab(detected === 'android' ? 'android' : 'ios')
       setDismissed(!!localStorage.getItem('install-section-dismissed'))
     }
   }, [])
 
-  // Hide if already installed or explicitly dismissed or desktop
-  if (standalone || dismissed || os === 'other') return null
+  // Hide if already installed as PWA or explicitly dismissed
+  if (standalone || dismissed) return null
 
   const steps = tab === 'ios' ? IOS_STEPS : ANDROID_STEPS
 
