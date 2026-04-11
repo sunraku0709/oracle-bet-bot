@@ -3,10 +3,19 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_BASE_URL": "https://www.oracle-bet.fr"
+  },
   "redirects": [
     {
       "source": "/:path*",
       "has": [{ "type": "host", "value": "oracle-bet.fr" }],
+      "destination": "https://www.oracle-bet.fr/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "oracle-bet-bot.vercel.app" }],
       "destination": "https://www.oracle-bet.fr/:path*",
       "permanent": true
     }

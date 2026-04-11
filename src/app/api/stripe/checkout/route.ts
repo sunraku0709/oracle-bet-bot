@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
       || req.headers.get('origin')
-      || 'https://oracle-bet-bot.vercel.app'
+      || 'https://www.oracle-bet.fr'
 
     const Stripe = (await import('stripe')).default
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
