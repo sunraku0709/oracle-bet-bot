@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
+import DashboardInstallCard from '@/components/DashboardInstallCard'
 
 type Analysis = {
   id: string
@@ -284,6 +285,9 @@ function DashboardContent() {
             </Link>
           </div>
         )}
+
+        {/* Mobile install card */}
+        <DashboardInstallCard />
 
         {/* Tabs */}
         <div className="flex gap-2 mb-8 bg-white/[0.03] rounded-xl p-1 border border-white/5 w-fit">
