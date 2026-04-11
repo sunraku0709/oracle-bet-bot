@@ -2,5 +2,13 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "oracle-bet.fr" }],
+      "destination": "https://www.oracle-bet.fr/:path*",
+      "permanent": true
+    }
+  ]
 }
