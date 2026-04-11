@@ -13,9 +13,9 @@ function detectOS(): OS {
 }
 
 const IOS_STEPS = [
-  { icon: '⎙', label: 'Safari', desc: "Ouvre ce site dans Safari" },
-  { icon: '↑', label: 'Partager', desc: "Appuie sur l'icône Partager en bas" },
-  { icon: '+', label: "Écran d'accueil", desc: "Sur l'écran d'accueil → Ajouter" },
+  { icon: '⎙', label: 'Safari',          desc: `Ouvre ce site dans Safari` },
+  { icon: '↑', label: 'Partager',         desc: `Appuie sur l'icône Partager en bas` },
+  { icon: '+', label: `Écran d'accueil`,  desc: `Sur l'écran d'accueil → Ajouter` },
 ]
 
 const ANDROID_STEPS = [
