@@ -25,7 +25,6 @@ const ANDROID_STEPS = [
 ]
 
 export default function InstallSection() {
-  const [os, setOs] = useState<OS>('other')
   const [tab, setTab] = useState<'ios' | 'android'>('ios')
   const [standalone, setStandalone] = useState(true) // start hidden, reveal after check
   const [dismissed, setDismissed] = useState(false)
@@ -40,7 +39,6 @@ export default function InstallSection() {
 
     if (!isStandalone) {
       const detected = detectOS()
-      setOs(detected)
       // Pre-select the tab matching the visitor's device; default to iOS on desktop
       setTab(detected === 'android' ? 'android' : 'ios')
       setDismissed(!!localStorage.getItem('install-section-dismissed'))
