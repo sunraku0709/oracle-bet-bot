@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // Fetch subscription with plan info
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
-      .select('status, plan, daily_limit, analyses_used, billing_period_start, current_period_end')
+      .select('status, plan, analyses_used, billing_period_start, current_period_end')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single()
@@ -35,13 +35,7 @@ export async function POST(req: NextRequest) {
     }
 
     const planId = getPlanById(subscription.plan)
-
-    // daily_limit from DB (-1 = unlimited); fallback to plans.ts if column missing
-    const dbLimit: number | null = subscription.daily_limit ?? null
-    const limit: number | null =
-      dbLimit === -1 ? null :
-      dbLimit !== null ? dbLimit :
-      getAnalysesLimit(planId)
+    const limit = getAnalysesLimit(planId)
 
     // Check daily usage limit (null = unlimited)
     let usedToday = 0

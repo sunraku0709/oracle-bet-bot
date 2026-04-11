@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { getPlanById, PLAN_DAILY_LIMITS } from '@/lib/plans'
+import { getPlanById } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
   const supabaseAdmin = createClient(
@@ -54,7 +54,6 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: sub.id,
           status: sub.status === 'active' ? 'active' : sub.status,
           plan: planId,
-          daily_limit: PLAN_DAILY_LIMITS[planId],
           analyses_used: 0,
           billing_period_start: new Date(sub.current_period_start * 1000).toISOString(),
           current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
@@ -88,7 +87,6 @@ export async function POST(req: NextRequest) {
           stripe_subscription_id: sub.id,
           status: sub.status === 'active' ? 'active' : sub.status,
           plan: planId,
-          daily_limit: PLAN_DAILY_LIMITS[planId],
           ...(periodChanged ? { analyses_used: 0 } : {}),
           billing_period_start: newPeriodStart,
           current_period_end: new Date(sub.current_period_end * 1000).toISOString(),

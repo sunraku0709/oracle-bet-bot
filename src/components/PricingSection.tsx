@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PLANS, type PlanId } from "@/lib/plans";
 
-const PLAN_ORDER: PlanId[] = ['standard', 'premium'];
+const PLAN_ORDER: PlanId[] = ['starter', 'standard', 'premium'];
 
 export function PricingSection() {
   return (
@@ -17,23 +17,25 @@ export function PricingSection() {
           </p>
         </div>
 
-        {/* 2 plan cards — centred */}
-        <div className="flex flex-col md:flex-row justify-center gap-8 max-w-3xl mx-auto">
+        {/* 3 plan cards */}
+        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {PLAN_ORDER.map((planId) => {
             const plan = PLANS[planId];
-            const isPopular  = plan.badge === 'POPULAIRE';
+            const isPopular = plan.badge === 'POPULAIRE';
             const isUnlimited = plan.badge === 'ILLIMITÉ';
 
             return (
               <div
                 key={planId}
-                className={`relative card-dark rounded-2xl p-10 flex flex-col flex-1 transition-all duration-300 ${
+                className={`relative card-dark rounded-2xl p-8 flex flex-col transition-all duration-300 ${
                   isPopular
                     ? 'border-[#C9A84C] gold-glow scale-[1.02]'
-                    : 'border-[#AAFF00]/40'
+                    : isUnlimited
+                    ? 'border-[#AAFF00]/40'
+                    : 'border-white/10'
                 }`}
               >
-                {/* Top accent line */}
+                {/* Top glow for popular */}
                 {isPopular && (
                   <div
                     className="absolute top-0 left-0 right-0 h-px rounded-t-2xl"
@@ -55,30 +57,34 @@ export function PricingSection() {
                   </div>
                 )}
 
-                {/* Price */}
-                <div className="text-center mb-8">
-                  <p className="text-xs font-semibold tracking-widest mb-2"
-                    style={{ color: plan.color, fontFamily: "'Rajdhani', sans-serif" }}>
+                {/* Plan name + price */}
+                <div className="text-center mb-6">
+                  <p
+                    className="text-xs font-semibold tracking-widest mb-2"
+                    style={{ color: plan.color, fontFamily: "'Rajdhani', sans-serif" }}
+                  >
                     {plan.name}
                   </p>
                   <div className="flex items-end justify-center gap-1">
-                    <span className="text-6xl font-bold"
-                      style={{ fontFamily: "'Bebas Neue', sans-serif", color: plan.color, letterSpacing: '0.05em' }}>
+                    <span
+                      className="text-5xl font-bold"
+                      style={{ fontFamily: "'Bebas Neue', sans-serif", color: plan.color, letterSpacing: '0.05em' }}
+                    >
                       {plan.priceLabel}
                     </span>
-                    <span className="text-white/40 mb-2 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>/mois</span>
+                    <span className="text-white/40 mb-1.5 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>/mois</span>
                   </div>
                   <p className="text-xs text-white/30 mt-1" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
                     {plan.analysesPerDay === null
                       ? 'Analyses & pronostics illimités'
-                      : `${plan.analysesPerDay} analyses/jour · pronostics inclus`}
+                      : `${plan.analysesPerDay} analyse${plan.analysesPerDay > 1 ? 's' : ''}/jour · pronostics inclus`}
                   </p>
                 </div>
 
                 {/* Features */}
-                <ul className="flex flex-col gap-3 mb-10 flex-1">
+                <ul className="flex flex-col gap-2.5 mb-8 flex-1">
                   {plan.features.map((item) => (
-                    <li key={item} className="flex items-start gap-3" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                    <li key={item} className="flex items-start gap-2.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
                       <span className="font-bold mt-0.5 shrink-0" style={{ color: plan.color }}>✓</span>
                       <span className="text-white/75 text-sm">{item}</span>
                     </li>
@@ -88,13 +94,16 @@ export function PricingSection() {
                 {/* CTA */}
                 <Link
                   href={`/auth?plan=${planId}&mode=register`}
-                  className="w-full py-4 rounded-xl text-sm font-bold tracking-widest text-center transition-all block"
+                  className="w-full py-3.5 rounded-xl text-sm font-bold tracking-widest text-center transition-all block"
                   style={{
                     fontFamily: "'Rajdhani', sans-serif",
                     background: isPopular
                       ? 'linear-gradient(135deg, #C9A84C, #F0D080)'
-                      : 'linear-gradient(135deg, #AAFF00, #88DD00)',
-                    color: '#0A0A0A',
+                      : isUnlimited
+                      ? 'linear-gradient(135deg, #AAFF00, #88DD00)'
+                      : 'rgba(255,255,255,0.08)',
+                    color: plan.badge ? '#0A0A0A' : '#FFFFFF',
+                    border: plan.badge ? 'none' : '1px solid rgba(255,255,255,0.15)',
                   }}
                 >
                   CHOISIR CE PLAN
@@ -104,7 +113,7 @@ export function PricingSection() {
           })}
         </div>
 
-        {/* Legal */}
+        {/* Legal note */}
         <p className="text-white/30 text-xs text-center mt-10 leading-relaxed">
           Les performances passées ne garantissent pas les performances futures.
           Les paris sportifs comportent des risques. +18 uniquement.
