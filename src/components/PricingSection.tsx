@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PLANS, type PlanId } from "@/lib/plans";
 
-const PLAN_ORDER: PlanId[] = ['starter', 'standard', 'premium'];
+const PLAN_ORDER: PlanId[] = ['essential', 'premium', 'unlimited'];
 
 export function PricingSection() {
   return (
@@ -22,7 +22,7 @@ export function PricingSection() {
           {PLAN_ORDER.map((planId) => {
             const plan = PLANS[planId];
             const isPopular = plan.badge === 'POPULAIRE';
-            const isUnlimited = plan.badge === 'ILLIMITÉ';
+            const isUnlimited = plan.badge === 'MEILLEUR CHOIX';
 
             return (
               <div

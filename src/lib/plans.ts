@@ -1,4 +1,4 @@
-export type PlanId = 'starter' | 'standard' | 'premium'
+export type PlanId = 'essential' | 'premium' | 'unlimited'
 
 export const PLANS: Record<PlanId, {
   id: PlanId
@@ -10,63 +10,58 @@ export const PLANS: Record<PlanId, {
   color: string
   features: string[]
 }> = {
-  starter: {
-    id: 'starter',
-    name: 'STARTER',
-    priceEur: 499,
-    priceLabel: '4,99€',
+  essential: {
+    id: 'essential',
+    name: 'ESSENTIAL',
+    priceEur: 999,
+    priceLabel: '9,99\u20ac',
     analysesPerDay: 1,
     badge: null,
     color: '#9CA3AF',
     features: [
-      '1 analyse complète par jour',
-      '1 pronostic structuré (10 points) par jour',
+      '1 analyse complete par jour',
+      '1 pronostic structure par jour',
       'Classification GOLD / SILVER / NO BET',
       'Football, Basketball, Tennis',
-      'Accès dashboard 24h/24',
-    ],
-  },
-  standard: {
-    id: 'standard',
-    name: 'STANDARD',
-    priceEur: 999,
-    priceLabel: '9,99€',
-    analysesPerDay: 3,
-    badge: 'POPULAIRE',
-    color: '#C9A84C',
-    features: [
-      '3 analyses complètes par jour',
-      '2 pronostics structurés (10 points) par jour',
-      'Classification GOLD / SILVER / NO BET',
-      'Football, Basketball, Tennis',
-      'Historique des analyses',
-      'Accès dashboard 24h/24',
+      'Dashboard 24h/24',
     ],
   },
   premium: {
     id: 'premium',
     name: 'PREMIUM',
-    priceEur: 1999,
-    priceLabel: '19,99€',
+    priceEur: 1990,
+    priceLabel: '19,90\u20ac',
+    analysesPerDay: 4,
+    badge: 'POPULAIRE',
+    color: '#C9A84C',
+    features: [
+      '4 analyses par jour',
+      '4 pronostics par jour',
+      'Classification GOLD / SILVER / NO BET',
+      'Historique des analyses',
+      'Dashboard 24h/24',
+    ],
+  },
+  unlimited: {
+    id: 'unlimited',
+    name: 'UNLIMITED',
+    priceEur: 2990,
+    priceLabel: '29,90\u20ac',
     analysesPerDay: null,
-    badge: 'ILLIMITÉ',
+    badge: 'MEILLEUR CHOIX',
     color: '#AAFF00',
     features: [
-      'Analyses & pronostics illimités par jour',
-      'Rapports structurés en 10 points',
-      'Classification GOLD / SILVER / NO BET',
-      'Football, Basketball, Tennis',
-      'Historique complet',
-      'Détection value bets',
-      'Accès dashboard 24h/24',
+      'Analyses illimitees',
+      'Pronostics illimites',
+      'Tout le contenu Premium',
       'Support prioritaire',
     ],
   },
 }
 
 export function getPlanById(id: string | null | undefined): PlanId {
-  if (id === 'starter' || id === 'standard' || id === 'premium') return id
-  return 'premium' // default
+  if (id === 'essential' || id === 'premium' || id === 'unlimited') return id
+  return 'essential'
 }
 
 export function getAnalysesLimit(plan: PlanId): number | null {

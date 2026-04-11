@@ -277,7 +277,7 @@ function DashboardContent() {
                 ⚡ Choisissez votre plan pour accéder aux analyses
               </p>
               <p className="text-gray-400 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                Starter 4,99€ · Standard 9,99€ · Premium 19,99€/mois
+                Essential 9,99€ · Premium 19,90€ · Unlimited 29,90€/mois
               </p>
             </div>
             <Link href="/abonnement" className="btn-gold px-6 py-2.5 rounded-lg text-sm tracking-widest whitespace-nowrap">

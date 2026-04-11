@@ -30,7 +30,7 @@ function PlanCard({
       className={`relative card-dark rounded-2xl p-6 md:p-8 flex flex-col transition-all duration-300 ${
         plan.badge === 'POPULAIRE'
           ? 'border-[#C9A84C] gold-glow scale-[1.02]'
-          : plan.badge === 'ILLIMITÉ'
+          : plan.badge === 'MEILLEUR CHOIX'
           ? 'border-[#AAFF00]/40'
           : 'border-white/10'
       }`}
@@ -92,7 +92,7 @@ function PlanCard({
             fontFamily: "'Rajdhani', sans-serif",
             background: plan.badge === 'POPULAIRE'
               ? 'linear-gradient(135deg, #C9A84C, #F0D080)'
-              : plan.badge === 'ILLIMITÉ'
+              : plan.badge === 'MEILLEUR CHOIX'
               ? 'linear-gradient(135deg, #AAFF00, #88DD00)'
               : 'rgba(255,255,255,0.08)',
             color: plan.badge ? '#0A0A0A' : '#FFFFFF',
@@ -206,7 +206,7 @@ function AbonnementContent() {
 
         {/* 3 Plan cards */}
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {(['starter', 'standard', 'premium'] as PlanId[]).map(planId => (
+          {(['essential', 'premium', 'unlimited'] as PlanId[]).map(planId => (
             <PlanCard
               key={planId}
               planId={planId}

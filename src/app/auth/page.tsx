@@ -13,7 +13,7 @@ function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: Pl
         CHOISISSEZ VOTRE FORFAIT
       </p>
       <div className="grid grid-cols-3 gap-2">
-        {(['starter', 'standard', 'premium'] as PlanId[]).map((planId) => {
+        {(['essential', 'premium', 'unlimited'] as PlanId[]).map((planId) => {
           const plan = PLANS[planId]
           const isSelected = selected === planId
           return (
