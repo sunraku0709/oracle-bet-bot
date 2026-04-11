@@ -35,24 +35,17 @@ export async function POST(req: NextRequest) {
       .eq('user_id', user.id)
       .single()
 
-    // Use pre-created Stripe price IDs if set in env, otherwise create dynamically
+    // Use pre-created Stripe price IDs from env vars
     const priceIdEnvKey = `STRIPE_PRICE_${planId.toUpperCase()}` as keyof NodeJS.ProcessEnv
     const priceId = process.env[priceIdEnvKey]
 
-    const lineItem = priceId
-      ? { price: priceId, quantity: 1 }
-      : {
-          price_data: {
-            currency: 'eur',
-            product_data: {
-              name: `Oracle Bet — ${plan.name}`,
-              description: plan.features.slice(0, 2).join(' · '),
-            },
-            unit_amount: plan.priceEur,
-            recurring: { interval: 'month' as const },
-          },
-          quantity: 1,
-        }
+    if (!priceId) {
+      return NextResponse.json({
+        error: `${priceIdEnvKey} non configurée dans Vercel. Appelez /api/admin/setup-stripe?secret=<ADMIN_SECRET> pour générer les Price IDs, puis ajoutez-les dans Vercel → Settings → Environment Variables.`,
+      }, { status: 500 })
+    }
+
+    const lineItem = { price: priceId, quantity: 1 }
 
     const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       payment_method_types: ['card'],
