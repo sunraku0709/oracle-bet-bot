@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
 import DashboardInstallCard from '@/components/DashboardInstallCard'
+import AnalysisReport, { parseAnalysisResult } from '@/components/AnalysisReport'
 
 type Analysis = {
   id: string
@@ -195,9 +196,12 @@ function DashboardContent() {
   const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const getScoreBadge = (result: string) => {
-    if (result.includes('GOLD')) return { label: 'GOLD', color: '#C9A84C' }
-    if (result.includes('SILVER')) return { label: 'SILVER', color: '#9CA3AF' }
-    if (result.includes('NO BET')) return { label: 'NO BET', color: '#EF4444' }
+    const data = parseAnalysisResult(result)
+    const cls = data?.classification
+      ?? (result.includes('GOLD') ? 'GOLD' : result.includes('SILVER') ? 'SILVER' : result.includes('NO BET') ? 'NO BET' : null)
+    if (cls === 'GOLD')   return { label: 'GOLD',   color: '#C9A84C' }
+    if (cls === 'SILVER') return { label: 'SILVER', color: '#9CA3AF' }
+    if (cls === 'NO BET') return { label: 'NO BET', color: '#EF4444' }
     return null
   }
 
@@ -421,16 +425,13 @@ function DashboardContent() {
 
               {!analysisLoading && result && (
                 <div className="flex-1 overflow-y-auto">
-                  <div className="analysis-output text-gray-200 text-sm leading-relaxed">
-                    {result.split('\n').map((line, i) => {
-                      if (/^\d+\.\s/.test(line) || /^[A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ\s]+\s*:/.test(line)) {
-                        return <p key={i} className="font-bold mt-4 mb-1" style={{ color: '#C9A84C' }}>{line}</p>
-                      }
-                      if (line.startsWith('- ') || line.startsWith('• ')) return <p key={i} className="ml-4 text-gray-300">{line}</p>
-                      if (line.trim() === '') return <br key={i} />
-                      return <p key={i}>{line}</p>
-                    })}
-                  </div>
+                  <AnalysisReport
+                    result={result}
+                    homeTeam={homeTeam}
+                    awayTeam={awayTeam}
+                    competition={competition}
+                    matchDate={matchDate}
+                  />
                 </div>
               )}
 
@@ -491,15 +492,14 @@ function DashboardContent() {
                       </div>
 
                       {isOpen && (
-                        <div className="mt-4 pt-4 border-t border-white/5 analysis-output text-gray-300 text-sm text-left">
-                          {a.result.split('\n').map((line, i) => {
-                            if (/^\d+\.\s/.test(line) || /^[A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ\s]+\s*:/.test(line)) {
-                              return <p key={i} className="font-bold mt-4 mb-1" style={{ color: '#C9A84C' }}>{line}</p>
-                            }
-                            if (line.startsWith('- ') || line.startsWith('• ')) return <p key={i} className="ml-4">{line}</p>
-                            if (line.trim() === '') return <br key={i} />
-                            return <p key={i}>{line}</p>
-                          })}
+                        <div className="mt-4 pt-4 border-t border-white/5 text-left" onClick={e => e.stopPropagation()}>
+                          <AnalysisReport
+                            result={a.result}
+                            homeTeam={a.home_team}
+                            awayTeam={a.away_team}
+                            competition={a.competition}
+                            matchDate={a.match_date}
+                          />
                         </div>
                       )}
                     </button>

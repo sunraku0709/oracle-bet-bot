@@ -123,77 +123,74 @@ export async function POST(req: NextRequest) {
       : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
     const prompt = `Tu es Team Oracle Bet, assistant d'analyse sportive ultra-structuré et pronostiqueur expert.
-Fiabilité minimum : 65%.
+Fiabilite minimum : 65%.
 
 MATCH : ${homeTeam} vs ${awayTeam}
 COMPETITION : ${competition || sport}
 DATE : ${dateStr}
 ${oddsSection}
 
-STRUCTURE OBLIGATOIRE :
+Retourne UNIQUEMENT un objet JSON valide (sans texte avant ni apres, sans backticks, sans markdown).
+Schema obligatoire :
+{
+  "classification": "GOLD" | "SILVER" | "NO BET",
+  "score": <entier 0-100 reflétant la confiance globale>,
+  "probabilities": {
+    "home": { "pct": <entier>, "odds": "<cote string ou null>" },
+    "draw": { "pct": <entier>, "odds": "<cote string ou null>" },
+    "away": { "pct": <entier>, "odds": "<cote string ou null>" }
+  },
+  "sections": [
+    { "n": 1, "title": "FORME RECENTE", "content": "<analyse 80-150 mots, bullet points avec prefix - >" },
+    { "n": 2, "title": "H2H", "content": "<analyse>" },
+    { "n": 3, "title": "STYLE DE JEU ET FORCES FAIBLESSES", "content": "<analyse>" },
+    { "n": 4, "title": "ABSENCES ET IMPACT REEL", "content": "<analyse>" },
+    { "n": 5, "title": "CALENDRIER ET CONTEXTE PHYSIQUE", "content": "<analyse>" },
+    { "n": 6, "title": "ENJEUX DU MATCH", "content": "<analyse>" },
+    { "n": 7, "title": "DECLARATIONS ENTRAINEURS", "content": "<analyse>" },
+    { "n": 8, "title": "STATISTIQUES AVANCEES", "content": "<analyse>" },
+    { "n": 9, "title": "RED FLAGS", "content": "<analyse>" },
+    { "n": 10, "title": "SYNTHESE FINALE", "content": "<synthese 100-200 mots avec elements decisifs>" }
+  ],
+  "verdict": {
+    "bet": "<paris principal recommande, ex: Victoire Domicile (1), Double chance 1X, Plus de 2.5 buts>",
+    "odds": "<cote string ou null>",
+    "edge_pct": <entier ou null>,
+    "value_bet": <true|false>,
+    "top_bets": ["<paris 1 avec justification>", "<paris 2>", "<paris 3>"]
+  }
+}
 
-1. FORME RECENTE (5 à 10 derniers matchs)
-- Résultats + performances globales
-- Tendances : progression / stagnation / chute
-- Stats clés : xG, xGA, occasions créées, buts marqués/encaissés
-
-2. H2H
-- Dynamiques significatives uniquement
-- Si aucune tendance claire : Aucune tendance H2H exploitable
-
-3. STYLE DE JEU + FORCES ET FAIBLESSES
-- Système tactique principal
-- Points forts / Points faibles
-
-4. ABSENCES ET IMPACT REEL
-- Blessés / suspendus / incertains
-- Si inconnu : Aucune source fiable disponible
-
-5. CALENDRIER ET CONTEXTE PHYSIQUE
-- Charge des matchs récents
-- Risques de rotation, fatigue probable
-
-6. ENJEUX DU MATCH
-- Classement et objectifs
-- Niveau de motivation
-
-7. DECLARATIONS ENTRAINEURS
-- Infos concrètes uniquement
-- Si absent : Aucune source fiable disponible
-
-8. STATISTIQUES AVANCEES
-- xG moyen, xGA moyen, tirs cadrés par match, clean sheets
-
-9. RED FLAGS
-- Match sans enjeu, rotation prévisible, fatigue, tensions internes
-
-10. SYNTHESE FINALE + PRONOSTIC
-- 4 à 6 éléments décisifs
-- Probabilité estimée % pour chaque option (victoire domicile / nul / victoire extérieure)
-- VALUE BET : oui ou non (justifié par rapport aux cotes si disponibles)
-- TOP 3 paris par ordre de préférence avec justification
-- Classification : GOLD (75%+) / SILVER (65-74%) / NO BET
-
-RÈGLES ABSOLUES :
-- Zéro blabla, zéro supposition non justifiée
-- Données et raisonnement structuré uniquement
-- Si info absente : indiquer "Aucune source fiable disponible"
-- Rapport entre 800 et 1200 mots`
+Regles :
+- classification = GOLD si confiance 75%+, SILVER si 65-74%, NO BET sinon
+- score = entier 0-100 (GOLD >= 75, SILVER 65-74, NO BET < 65)
+- probabilities : home.pct + draw.pct + away.pct = 100
+- odds dans probabilities : reprendre les cotes renseignees si disponibles, sinon null
+- sections[].content : minimum 80 mots, bullet points avec "- " prefix pour les elements, zéro supposition non justifiée
+- Si info absente : ecrire "Aucune source fiable disponible"
+- Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
 
     const Anthropic = (await import('@anthropic-ai/sdk')).default
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const message = await client.messages.create({
       model: 'claude-sonnet-4-5',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     })
 
-    const result = message.content[0].type === 'text' ? message.content[0].text : ''
+    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    if (!result) {
+    if (!raw) {
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
     }
+
+    // Normalise: strip potential markdown fences Claude might add despite instructions
+    const result = raw
+      .replace(/^```json\s*/m, '')
+      .replace(/^```\s*/m, '')
+      .replace(/```\s*$/m, '')
+      .trim()
 
     await Promise.all([
       adminClient
