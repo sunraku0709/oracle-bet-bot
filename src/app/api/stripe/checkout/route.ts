@@ -16,6 +16,17 @@ export async function POST(req: NextRequest) {
     }
 
     const stripeKey = process.env.STRIPE_SECRET_KEY.trim()
+
+    // Diagnostic log — visible dans Vercel → Functions → Logs
+    console.log('[stripe/checkout] KEY DIAG:', {
+      raw_length: process.env.STRIPE_SECRET_KEY.length,
+      trimmed_length: stripeKey.length,
+      has_whitespace: process.env.STRIPE_SECRET_KEY !== stripeKey,
+      prefix: stripeKey.slice(0, 12) + '…',
+      starts_with_sk: stripeKey.startsWith('sk_'),
+      mode: stripeKey.startsWith('sk_live_') ? 'LIVE' : stripeKey.startsWith('sk_test_') ? 'TEST' : 'UNKNOWN',
+    })
+
     if (!stripeKey.startsWith('sk_')) {
       return NextResponse.json({
         error: `STRIPE_SECRET_KEY invalide — doit commencer par sk_live_ ou sk_test_ (valeur actuelle commence par: "${stripeKey.slice(0, 8)}")`,
