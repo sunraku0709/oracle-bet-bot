@@ -76,10 +76,19 @@ function AuthContent() {
         window.location.href = data.url
         return
       }
+      // Stripe returned an error — show it, do NOT bypass to dashboard
+      setMessage({
+        type: 'error',
+        text: data.error || 'Erreur paiement Stripe. Réessayez depuis la page abonnement.',
+      })
+      setLoading(false)
     } catch {
-      // Stripe unavailable — go to dashboard anyway
+      setMessage({
+        type: 'error',
+        text: 'Erreur réseau lors du paiement. Réessayez depuis la page abonnement.',
+      })
+      setLoading(false)
     }
-    router.push('/dashboard')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,7 +118,7 @@ function AuthContent() {
         }
         await redirectToCheckout(selectedPlan)
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) {
           const msg = error.message?.toLowerCase() || ''
           if (msg.includes('invalid') || msg.includes('credentials')) {
@@ -125,8 +134,19 @@ function AuthContent() {
           return
         }
         const planParam = searchParams.get('plan')
-        if (planParam) {
-          await redirectToCheckout(getPlanById(planParam))
+        if (planParam && signInData.user) {
+          // Don't charge again if user already has an active subscription
+          const { data: existingSub } = await supabase
+            .from('subscriptions')
+            .select('status')
+            .eq('user_id', signInData.user.id)
+            .eq('status', 'active')
+            .single()
+          if (existingSub) {
+            router.push('/dashboard')
+          } else {
+            await redirectToCheckout(getPlanById(planParam))
+          }
         } else {
           router.push('/dashboard')
         }
