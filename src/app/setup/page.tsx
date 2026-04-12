@@ -7,7 +7,7 @@ async function getStatus() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
   const hasPostgresUrl = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL)
   const hasStripe = !!(process.env.STRIPE_SECRET_KEY)
-  const hasAnthropicAI = !!(process.env.ANTHROPIC_API_KEY)
+  const hasGemini = !!(process.env.GEMINI_API_KEY)
 
   let tablesExist = false
   if (url && key) {
@@ -18,13 +18,13 @@ async function getStatus() {
     } catch { /* ignore */ }
   }
 
-  return { tablesExist, hasPostgresUrl, hasStripe, hasAnthropicAI }
+  return { tablesExist, hasPostgresUrl, hasStripe, hasGemini }
 }
 
 export const dynamic = 'force-dynamic'
 
 export default async function SetupPage() {
-  const { tablesExist, hasPostgresUrl, hasStripe, hasAnthropicAI } = await getStatus()
+  const { tablesExist, hasPostgresUrl, hasStripe, hasGemini } = await getStatus()
   const sql = getMigrationSQL()
   const projectRef = 'jnyomioesinzwuwtmort'
 
@@ -71,7 +71,7 @@ export default async function SetupPage() {
           {[
             { label: 'Tables DB', ok: tablesExist },
             { label: 'Stripe', ok: hasStripe },
-            { label: 'Anthropic AI', ok: hasAnthropicAI },
+            { label: 'Gemini AI', ok: hasGemini },
             { label: 'POSTGRES_URL', ok: hasPostgresUrl },
           ].map(({ label, ok }) => (
             <div key={label} className={`rounded-xl p-3 text-center border ${ok ? 'border-[#AAFF00]/30 bg-[#AAFF00]/5' : 'border-red-500/30 bg-red-500/5'}`}>
