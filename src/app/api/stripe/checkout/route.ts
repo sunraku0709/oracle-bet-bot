@@ -15,6 +15,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'STRIPE_SECRET_KEY non configurée' }, { status: 500 })
     }
 
+    const stripeKey = process.env.STRIPE_SECRET_KEY.trim()
+
+    // Diagnostic log — visible dans Vercel → Functions → Logs
+    console.log('[stripe/checkout] KEY DIAG:', {
+      raw_length: process.env.STRIPE_SECRET_KEY.length,
+      trimmed_length: stripeKey.length,
+      has_whitespace: process.env.STRIPE_SECRET_KEY !== stripeKey,
+      prefix: stripeKey.slice(0, 12) + '…',
+      starts_with_sk: stripeKey.startsWith('sk_'),
+      mode: stripeKey.startsWith('sk_live_') ? 'LIVE' : stripeKey.startsWith('sk_test_') ? 'TEST' : 'UNKNOWN',
+    })
+
+    if (!stripeKey.startsWith('sk_')) {
+      return NextResponse.json({
+        error: `STRIPE_SECRET_KEY invalide — doit commencer par sk_live_ ou sk_test_ (valeur actuelle commence par: "${stripeKey.slice(0, 8)}")`,
+      }, { status: 500 })
+    }
+
     const body = await req.json().catch(() => ({}))
     const planId: PlanId = getPlanById(body.plan)
     const plan = PLANS[planId]
@@ -24,7 +42,7 @@ export async function POST(req: NextRequest) {
       || 'https://oracle-bet-bot.vercel.app'
 
     const Stripe = (await import('stripe')).default
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+    const stripe = new Stripe(stripeKey, {
       apiVersion: '2024-12-18.acacia',
     })
 
@@ -78,11 +96,7 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     console.error('Stripe checkout error:', error)
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
-    if (msg.includes('Invalid API Key') || msg.includes('No API key')) {
-      return NextResponse.json({
-        error: 'Clé Stripe invalide. Vérifiez STRIPE_SECRET_KEY dans Vercel → Settings → Environment Variables.',
-      }, { status: 500 })
-    }
-    return NextResponse.json({ error: 'Erreur paiement : ' + msg }, { status: 500 })
+    // Return the raw Stripe error message — helps diagnose the real cause in production
+    return NextResponse.json({ error: 'Erreur Stripe : ' + msg }, { status: 500 })
   }
 }
