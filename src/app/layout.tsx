@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_FR",
-    url: "https://oracle-bet.fr",
+    url: "https://www.oracle-bet.fr",
     siteName: "Oracle Bet",
     title: "Oracle Bet — Analyses IA pour Paris Sportifs",
     description:
@@ -82,6 +82,11 @@ export const metadata: Metadata = {
       { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
     shortcut: "/icons/icon-192.png",
+  },
+
+  // Canonical — tells Google the preferred URL to index
+  alternates: {
+    canonical: "https://www.oracle-bet.fr",
   },
 
   // Misc
