@@ -1,4 +1,4 @@
-export type PlanId = 'essential' | 'premium' | 'unlimited'
+export type PlanId = 'essential' | 'premium' | 'unlimited' | 'gold'
 
 export const PLANS: Record<PlanId, {
   id: PlanId
@@ -10,6 +10,7 @@ export const PLANS: Record<PlanId, {
   color: string
   features: string[]
 }> = {
+  // Legacy plans kept for backward-compat with existing subscribers
   essential: {
     id: 'essential',
     name: 'ESSENTIAL',
@@ -57,11 +58,29 @@ export const PLANS: Record<PlanId, {
       'Support prioritaire',
     ],
   },
+  // Current active plan
+  gold: {
+    id: 'gold',
+    name: 'GOLD',
+    priceEur: 3000,
+    priceLabel: '30\u20ac',
+    analysesPerDay: null,
+    badge: 'MEILLEUR CHOIX',
+    color: '#C9A84C',
+    features: [
+      'Analyses illimitees — Claude + DeepSeek',
+      'Double IA en parallele',
+      'Classification GOLD / SILVER / NO BET',
+      'Historique complet des analyses',
+      'Dashboard securise 24h/24',
+      'Support prioritaire',
+    ],
+  },
 }
 
 export function getPlanById(id: string | null | undefined): PlanId {
-  if (id === 'essential' || id === 'premium' || id === 'unlimited') return id
-  return 'essential'
+  if (id === 'essential' || id === 'premium' || id === 'unlimited' || id === 'gold') return id
+  return 'gold'
 }
 
 export function getAnalysesLimit(plan: PlanId): number | null {

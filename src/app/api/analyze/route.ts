@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { getPlanById, getAnalysesLimit, PLANS } from '@/lib/plans'
+import { getPlanById, getAnalysesLimit, PLANS, type PlanId } from '@/lib/plans'
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
     //   • Cookie session  (web browser)
     //   • Bearer token    (mobile app)
     let userId: string | null = null
+    let userEmail: string | null = null
     const authHeader = req.headers.get('Authorization')
 
     if (authHeader?.startsWith('Bearer ')) {
@@ -30,15 +31,20 @@ export async function POST(req: NextRequest) {
       )
       const { data } = await anonClient.auth.getUser(token)
       userId = data.user?.id ?? null
+      userEmail = data.user?.email ?? null
     } else {
       const supabase = await createSupabaseServerClient()
       const { data } = await supabase.auth.getUser()
       userId = data.user?.id ?? null
+      userEmail = data.user?.email ?? null
     }
 
     if (!userId) {
       return NextResponse.json({ error: 'Non authentifié' }, { status: 401, headers: CORS_HEADERS })
     }
+
+    // Admin bypass — unlimited access regardless of subscription
+    const isAdminUser = userEmail === 'test@oracle-bet.app'
 
     // All DB reads/writes use the service-role client (bypasses RLS, works for both auth paths)
     const { createClient } = await import('@supabase/supabase-js')
@@ -48,55 +54,62 @@ export async function POST(req: NextRequest) {
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
 
-    const { data: subscription, error: subError } = await adminClient
-      .from('subscriptions')
-      .select('status, plan, analyses_used, billing_period_start, current_period_end')
-      .eq('user_id', userId)
-      .eq('status', 'active')
-      .single()
-
-    if (subError) {
-      if (subError.message?.includes('relation') || subError.code === 'PGRST205') {
-        return NextResponse.json(
-          { error: 'Base de données non initialisée. Visitez /setup pour configurer les tables.', setup: true },
-          { status: 503, headers: CORS_HEADERS },
-        )
-      }
-      return NextResponse.json({ error: 'Abonnement requis' }, { status: 403, headers: CORS_HEADERS })
-    }
-
-    if (!subscription) {
-      return NextResponse.json({ error: 'Abonnement requis' }, { status: 403, headers: CORS_HEADERS })
-    }
-
-    const planId = getPlanById(subscription.plan)
-    const limit = getAnalysesLimit(planId)
-
+    let planId: PlanId = 'gold'
+    let limit: number | null = null
     let usedToday = 0
-    if (limit !== null) {
-      const todayStart = new Date()
-      todayStart.setHours(0, 0, 0, 0)
+    let subscriptionAnalysesUsed = 0
 
-      const { count, error: countError } = await adminClient
-        .from('analyses')
-        .select('id', { count: 'exact', head: true })
+    if (!isAdminUser) {
+      const { data: subscription, error: subError } = await adminClient
+        .from('subscriptions')
+        .select('status, plan, analyses_used, billing_period_start, current_period_end')
         .eq('user_id', userId)
-        .gte('created_at', todayStart.toISOString())
+        .eq('status', 'active')
+        .single()
 
-      if (!countError) usedToday = count ?? 0
+      if (subError) {
+        if (subError.message?.includes('relation') || subError.code === 'PGRST205') {
+          return NextResponse.json(
+            { error: 'Base de données non initialisée. Visitez /setup pour configurer les tables.', setup: true },
+            { status: 503, headers: CORS_HEADERS },
+          )
+        }
+        return NextResponse.json({ error: 'Abonnement requis' }, { status: 403, headers: CORS_HEADERS })
+      }
 
-      if (usedToday >= limit) {
-        const planName = PLANS[planId].name
-        return NextResponse.json(
-          {
-            error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/jour). Passez au plan supérieur pour continuer.`,
-            limitReached: true,
-            used: usedToday,
-            limit,
-            plan: planId,
-          },
-          { status: 403, headers: CORS_HEADERS },
-        )
+      if (!subscription) {
+        return NextResponse.json({ error: 'Abonnement requis' }, { status: 403, headers: CORS_HEADERS })
+      }
+
+      planId = getPlanById(subscription.plan)
+      limit = getAnalysesLimit(planId)
+      subscriptionAnalysesUsed = subscription.analyses_used || 0
+
+      if (limit !== null) {
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+
+        const { count, error: countError } = await adminClient
+          .from('analyses')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', todayStart.toISOString())
+
+        if (!countError) usedToday = count ?? 0
+
+        if (usedToday >= limit) {
+          const planName = PLANS[planId].name
+          return NextResponse.json(
+            {
+              error: `Limite atteinte pour votre plan ${planName} (${limit} analyse${limit > 1 ? 's' : ''}/jour). Passez au plan supérieur pour continuer.`,
+              limitReached: true,
+              used: usedToday,
+              limit,
+              plan: planId,
+            },
+            { status: 403, headers: CORS_HEADERS },
+          )
+        }
       }
     }
 
@@ -225,67 +238,33 @@ Regles :
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
     }
 
-    // Fusion: synthesise both analyses into a final verdict via DeepSeek
-    const fusionPrompt = `Expert analyse sportive. Fusionne ces 2 analyses en JSON brut uniquement (pas de backticks).
+    // Store both analyses together; frontend renders them side by side
+    const result = JSON.stringify({ mode: 'dual', deepseek: deepseekAnalysis, claude: claudeAnalysis })
 
-A1:${deepseekAnalysis}
-
-A2:${claudeAnalysis}
-
-JSON obligatoire:
-{"classification":"GOLD"|"SILVER"|"NO BET","score":<0-100>,"probabilities":{"home":{"pct":<n>,"odds":<str|null>},"draw":{"pct":<n>,"odds":<str|null>},"away":{"pct":<n>,"odds":<str|null>}},"sections":[{"n":1,"title":"FORME RECENTE","content":"<50-80 mots>"},{"n":2,"title":"H2H","content":"<>"},{"n":3,"title":"STYLE DE JEU ET FORCES FAIBLESSES","content":"<>"},{"n":4,"title":"ABSENCES ET IMPACT REEL","content":"<>"},{"n":5,"title":"CALENDRIER ET CONTEXTE PHYSIQUE","content":"<>"},{"n":6,"title":"ENJEUX DU MATCH","content":"<>"},{"n":7,"title":"DECLARATIONS ENTRAINEURS","content":"<>"},{"n":8,"title":"STATISTIQUES AVANCEES","content":"<>"},{"n":9,"title":"RED FLAGS","content":"<divergences entre A1 et A2>"},{"n":10,"title":"SYNTHESE FINALE","content":"<accords=haute fiabilite, divergences=incertitude, verdict consolide>"}],"verdict":{"bet":"<paris>","odds":<str|null>,"edge_pct":<n|null>,"value_bet":<bool>,"top_bets":["<p1>","<p2>","<p3>"]}}
-Regles: GOLD>=75, SILVER 65-74, sinon NO BET. home.pct+draw.pct+away.pct=100.`
-
-    const fusionRes = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + process.env.DEEPSEEK_API_KEY,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: fusionPrompt }],
-        max_tokens: 1000,
-      }),
-    })
-
-    if (!fusionRes.ok) {
-      const errText = await fusionRes.text()
-      throw new Error(`DeepSeek fusion API error ${fusionRes.status}: ${errText}`)
+    const analysisRecord = {
+      user_id: userId,
+      home_team: homeTeam.trim(),
+      away_team: awayTeam.trim(),
+      sport,
+      competition: competition || sport,
+      match_date: matchDate || new Date().toISOString().split('T')[0],
+      odds_home: oddsHome || null,
+      odds_draw: oddsDraw || null,
+      odds_away: oddsAway || null,
+      result,
     }
 
-    const fusionData = await fusionRes.json()
-    const raw: string = fusionData.choices?.[0]?.message?.content ?? ''
-
-    if (!raw) {
-      return NextResponse.json({ error: "La fusion IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
+    if (isAdminUser) {
+      await adminClient.from('analyses').insert(analysisRecord)
+    } else {
+      await Promise.all([
+        adminClient
+          .from('subscriptions')
+          .update({ analyses_used: subscriptionAnalysesUsed + 1, updated_at: new Date().toISOString() })
+          .eq('user_id', userId),
+        adminClient.from('analyses').insert(analysisRecord),
+      ])
     }
-
-    // Strip potential markdown fences
-    const result = raw
-      .replace(/^```json\s*/m, '')
-      .replace(/^```\s*/m, '')
-      .replace(/```\s*$/m, '')
-      .trim()
-
-    await Promise.all([
-      adminClient
-        .from('subscriptions')
-        .update({ analyses_used: (subscription.analyses_used || 0) + 1, updated_at: new Date().toISOString() })
-        .eq('user_id', userId),
-      adminClient.from('analyses').insert({
-        user_id: userId,
-        home_team: homeTeam.trim(),
-        away_team: awayTeam.trim(),
-        sport,
-        competition: competition || sport,
-        match_date: matchDate || new Date().toISOString().split('T')[0],
-        odds_home: oddsHome || null,
-        odds_draw: oddsDraw || null,
-        odds_away: oddsAway || null,
-        result,
-      }),
-    ])
 
     const remaining = limit === null ? null : limit - usedToday - 1
 
