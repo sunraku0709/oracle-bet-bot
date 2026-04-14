@@ -110,8 +110,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
+    if (!process.env.DEEPSEEK_API_KEY) {
+      return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
     }
 
     const oddsSection = (oddsHome || oddsDraw || oddsAway)
@@ -170,16 +170,26 @@ Regles :
 - Si info absente : ecrire "Aucune source fiable disponible"
 - Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
 
-    const Anthropic = (await import('@anthropic-ai/sdk')).default
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-    const message = await client.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
+    const deepseekRes = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + process.env.DEEPSEEK_API_KEY,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+      }),
     })
 
-    const raw = message.content[0].type === 'text' ? message.content[0].text : ''
+    if (!deepseekRes.ok) {
+      const errText = await deepseekRes.text()
+      throw new Error(`DeepSeek API error ${deepseekRes.status}: ${errText}`)
+    }
+
+    const deepseekData = await deepseekRes.json()
+    const raw: string = deepseekData.choices?.[0]?.message?.content ?? ''
 
     if (!raw) {
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
@@ -219,7 +229,7 @@ Regles :
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
     if (msg.includes('API_KEY') || msg.includes('API key')) {
       return NextResponse.json(
-        { error: 'Clé ANTHROPIC_API_KEY invalide ou non configurée' },
+        { error: 'Clé DEEPSEEK_API_KEY invalide ou non configurée' },
         { status: 500, headers: CORS_HEADERS },
       )
     }
