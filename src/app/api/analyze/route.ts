@@ -185,7 +185,7 @@ Regles :
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2000,
+          max_tokens: 800,
         }),
       }),
       fetch('https://api.anthropic.com/v1/messages', {
@@ -197,7 +197,7 @@ Regles :
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
-          max_tokens: 2000,
+          max_tokens: 800,
           messages: [{ role: 'user', content: prompt }],
         }),
       }),
@@ -226,55 +226,15 @@ Regles :
     }
 
     // Fusion: synthesise both analyses into a final verdict via DeepSeek
-    const fusionPrompt = `Tu es un expert en analyse sportive.
-Voici deux analyses independantes du meme match:
+    const fusionPrompt = `Expert analyse sportive. Fusionne ces 2 analyses en JSON brut uniquement (pas de backticks).
 
-ANALYSE 1 (DeepSeek):
-${deepseekAnalysis}
+A1:${deepseekAnalysis}
 
-ANALYSE 2 (Claude):
-${claudeAnalysis}
+A2:${claudeAnalysis}
 
-Synthétise ces deux analyses en:
-1. Points sur lesquels les deux IA s'accordent (= haute fiabilite)
-2. Points de divergence (= zones d'incertitude)
-3. Verdict final consolide avec niveau de confiance
-
-Retourne UNIQUEMENT un objet JSON valide (sans texte avant ni apres, sans backticks, sans markdown).
-Schema obligatoire identique aux analyses sources :
-{
-  "classification": "GOLD" | "SILVER" | "NO BET",
-  "score": <entier 0-100 reflétant la confiance globale consolidee>,
-  "probabilities": {
-    "home": { "pct": <entier>, "odds": "<cote string ou null>" },
-    "draw": { "pct": <entier>, "odds": "<cote string ou null>" },
-    "away": { "pct": <entier>, "odds": "<cote string ou null>" }
-  },
-  "sections": [
-    { "n": 1, "title": "FORME RECENTE", "content": "<synthese des deux analyses>" },
-    { "n": 2, "title": "H2H", "content": "<synthese>" },
-    { "n": 3, "title": "STYLE DE JEU ET FORCES FAIBLESSES", "content": "<synthese>" },
-    { "n": 4, "title": "ABSENCES ET IMPACT REEL", "content": "<synthese>" },
-    { "n": 5, "title": "CALENDRIER ET CONTEXTE PHYSIQUE", "content": "<synthese>" },
-    { "n": 6, "title": "ENJEUX DU MATCH", "content": "<synthese>" },
-    { "n": 7, "title": "DECLARATIONS ENTRAINEURS", "content": "<synthese>" },
-    { "n": 8, "title": "STATISTIQUES AVANCEES", "content": "<synthese>" },
-    { "n": 9, "title": "RED FLAGS", "content": "<synthese avec points de divergence entre les deux IA>" },
-    { "n": 10, "title": "SYNTHESE FINALE", "content": "<synthese 100-200 mots : points d'accord = haute fiabilite, divergences = incertitude, verdict consolide>" }
-  ],
-  "verdict": {
-    "bet": "<paris principal recommande>",
-    "odds": "<cote string ou null>",
-    "edge_pct": <entier ou null>,
-    "value_bet": <true|false>,
-    "top_bets": ["<paris 1 avec justification>", "<paris 2>", "<paris 3>"]
-  }
-}
-
-Regles :
-- classification = GOLD si confiance consolidee 75%+, SILVER si 65-74%, NO BET sinon
-- probabilities : home.pct + draw.pct + away.pct = 100
-- Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
+JSON obligatoire:
+{"classification":"GOLD"|"SILVER"|"NO BET","score":<0-100>,"probabilities":{"home":{"pct":<n>,"odds":<str|null>},"draw":{"pct":<n>,"odds":<str|null>},"away":{"pct":<n>,"odds":<str|null>}},"sections":[{"n":1,"title":"FORME RECENTE","content":"<50-80 mots>"},{"n":2,"title":"H2H","content":"<>"},{"n":3,"title":"STYLE DE JEU ET FORCES FAIBLESSES","content":"<>"},{"n":4,"title":"ABSENCES ET IMPACT REEL","content":"<>"},{"n":5,"title":"CALENDRIER ET CONTEXTE PHYSIQUE","content":"<>"},{"n":6,"title":"ENJEUX DU MATCH","content":"<>"},{"n":7,"title":"DECLARATIONS ENTRAINEURS","content":"<>"},{"n":8,"title":"STATISTIQUES AVANCEES","content":"<>"},{"n":9,"title":"RED FLAGS","content":"<divergences entre A1 et A2>"},{"n":10,"title":"SYNTHESE FINALE","content":"<accords=haute fiabilite, divergences=incertitude, verdict consolide>"}],"verdict":{"bet":"<paris>","odds":<str|null>,"edge_pct":<n|null>,"value_bet":<bool>,"top_bets":["<p1>","<p2>","<p3>"]}}
+Regles: GOLD>=75, SILVER 65-74, sinon NO BET. home.pct+draw.pct+away.pct=100.`
 
     const fusionRes = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -285,7 +245,7 @@ Regles :
       body: JSON.stringify({
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: fusionPrompt }],
-        max_tokens: 2000,
+        max_tokens: 1000,
       }),
     })
 
