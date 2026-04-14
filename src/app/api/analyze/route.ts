@@ -114,6 +114,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
     }
 
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
+    }
+
     const oddsSection = (oddsHome || oddsDraw || oddsAway)
       ? `COTES EN TEMPS REEL (Bet365 | Unibet) : Domicile ${oddsHome || 'N/A'} / Nul ${oddsDraw || 'N/A'} / Extérieur ${oddsAway || 'N/A'}`
       : 'COTES EN TEMPS REEL : Non renseignées'
@@ -170,7 +174,109 @@ Regles :
 - Si info absente : ecrire "Aucune source fiable disponible"
 - Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
 
-    const deepseekRes = await fetch('https://api.deepseek.com/chat/completions', {
+    // Run both AI calls in parallel
+    const [deepseekRes, claudeRes] = await Promise.all([
+      fetch('https://api.deepseek.com/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + process.env.DEEPSEEK_API_KEY,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 2000,
+        }),
+      }),
+      fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.ANTHROPIC_API_KEY!,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5',
+          max_tokens: 2000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      }),
+    ])
+
+    if (!deepseekRes.ok) {
+      const errText = await deepseekRes.text()
+      throw new Error(`DeepSeek API error ${deepseekRes.status}: ${errText}`)
+    }
+
+    if (!claudeRes.ok) {
+      const errText = await claudeRes.text()
+      throw new Error(`Anthropic API error ${claudeRes.status}: ${errText}`)
+    }
+
+    const [deepseekData, claudeData] = await Promise.all([
+      deepseekRes.json(),
+      claudeRes.json(),
+    ])
+
+    const deepseekAnalysis: string = deepseekData.choices?.[0]?.message?.content ?? ''
+    const claudeAnalysis: string = claudeData.content?.[0]?.text ?? ''
+
+    if (!deepseekAnalysis || !claudeAnalysis) {
+      return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
+    }
+
+    // Fusion: synthesise both analyses into a final verdict via DeepSeek
+    const fusionPrompt = `Tu es un expert en analyse sportive.
+Voici deux analyses independantes du meme match:
+
+ANALYSE 1 (DeepSeek):
+${deepseekAnalysis}
+
+ANALYSE 2 (Claude):
+${claudeAnalysis}
+
+Synthétise ces deux analyses en:
+1. Points sur lesquels les deux IA s'accordent (= haute fiabilite)
+2. Points de divergence (= zones d'incertitude)
+3. Verdict final consolide avec niveau de confiance
+
+Retourne UNIQUEMENT un objet JSON valide (sans texte avant ni apres, sans backticks, sans markdown).
+Schema obligatoire identique aux analyses sources :
+{
+  "classification": "GOLD" | "SILVER" | "NO BET",
+  "score": <entier 0-100 reflétant la confiance globale consolidee>,
+  "probabilities": {
+    "home": { "pct": <entier>, "odds": "<cote string ou null>" },
+    "draw": { "pct": <entier>, "odds": "<cote string ou null>" },
+    "away": { "pct": <entier>, "odds": "<cote string ou null>" }
+  },
+  "sections": [
+    { "n": 1, "title": "FORME RECENTE", "content": "<synthese des deux analyses>" },
+    { "n": 2, "title": "H2H", "content": "<synthese>" },
+    { "n": 3, "title": "STYLE DE JEU ET FORCES FAIBLESSES", "content": "<synthese>" },
+    { "n": 4, "title": "ABSENCES ET IMPACT REEL", "content": "<synthese>" },
+    { "n": 5, "title": "CALENDRIER ET CONTEXTE PHYSIQUE", "content": "<synthese>" },
+    { "n": 6, "title": "ENJEUX DU MATCH", "content": "<synthese>" },
+    { "n": 7, "title": "DECLARATIONS ENTRAINEURS", "content": "<synthese>" },
+    { "n": 8, "title": "STATISTIQUES AVANCEES", "content": "<synthese>" },
+    { "n": 9, "title": "RED FLAGS", "content": "<synthese avec points de divergence entre les deux IA>" },
+    { "n": 10, "title": "SYNTHESE FINALE", "content": "<synthese 100-200 mots : points d'accord = haute fiabilite, divergences = incertitude, verdict consolide>" }
+  ],
+  "verdict": {
+    "bet": "<paris principal recommande>",
+    "odds": "<cote string ou null>",
+    "edge_pct": <entier ou null>,
+    "value_bet": <true|false>,
+    "top_bets": ["<paris 1 avec justification>", "<paris 2>", "<paris 3>"]
+  }
+}
+
+Regles :
+- classification = GOLD si confiance consolidee 75%+, SILVER si 65-74%, NO BET sinon
+- probabilities : home.pct + draw.pct + away.pct = 100
+- Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
+
+    const fusionRes = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -178,24 +284,24 @@ Regles :
       },
       body: JSON.stringify({
         model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: fusionPrompt }],
         max_tokens: 2000,
       }),
     })
 
-    if (!deepseekRes.ok) {
-      const errText = await deepseekRes.text()
-      throw new Error(`DeepSeek API error ${deepseekRes.status}: ${errText}`)
+    if (!fusionRes.ok) {
+      const errText = await fusionRes.text()
+      throw new Error(`DeepSeek fusion API error ${fusionRes.status}: ${errText}`)
     }
 
-    const deepseekData = await deepseekRes.json()
-    const raw: string = deepseekData.choices?.[0]?.message?.content ?? ''
+    const fusionData = await fusionRes.json()
+    const raw: string = fusionData.choices?.[0]?.message?.content ?? ''
 
     if (!raw) {
-      return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
+      return NextResponse.json({ error: "La fusion IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
     }
 
-    // Normalise: strip potential markdown fences Claude might add despite instructions
+    // Strip potential markdown fences
     const result = raw
       .replace(/^```json\s*/m, '')
       .replace(/^```\s*/m, '')
@@ -229,7 +335,7 @@ Regles :
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
     if (msg.includes('API_KEY') || msg.includes('API key')) {
       return NextResponse.json(
-        { error: 'Clé DEEPSEEK_API_KEY invalide ou non configurée' },
+        { error: 'Clé API invalide ou non configurée (DEEPSEEK_API_KEY / ANTHROPIC_API_KEY)' },
         { status: 500, headers: CORS_HEADERS },
       )
     }
