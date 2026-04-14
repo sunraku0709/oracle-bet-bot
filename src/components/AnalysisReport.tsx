@@ -185,7 +185,7 @@ function LegacyReport({ result }: { result: string }) {
   )
 }
 
-// ── JSON parser helper ────────────────────────────────────────────────────────
+// ── JSON parser helpers ───────────────────────────────────────────────────────
 
 export function parseAnalysisResult(result: string): AnalysisData | null {
   try {
@@ -202,9 +202,21 @@ export function parseAnalysisResult(result: string): AnalysisData | null {
   }
 }
 
-// ── Main export ───────────────────────────────────────────────────────────────
+type DualResult = { mode: 'dual'; deepseek: string; claude: string }
 
-export default function AnalysisReport({ result, homeTeam, awayTeam, competition, matchDate }: Props) {
+function parseDualResult(result: string): DualResult | null {
+  try {
+    const data = JSON.parse(result)
+    if (data?.mode === 'dual' && data.deepseek && data.claude) return data as DualResult
+    return null
+  } catch {
+    return null
+  }
+}
+
+// ── Dual analysis view ────────────────────────────────────────────────────────
+
+function SinglePane({ result, homeTeam, awayTeam, competition, matchDate }: Props) {
   const data = parseAnalysisResult(result)
   const [open, setOpen] = useState<Set<number>>(new Set([10]))
 
@@ -228,9 +240,6 @@ export default function AnalysisReport({ result, homeTeam, awayTeam, competition
 
   return (
     <div>
-      {/* ─────────────────────────────────────────────────
-          1. MATCH HEADER
-      ───────────────────────────────────────────────── */}
       <div style={{
         background: 'linear-gradient(135deg,#0f0d04 0%,#0e0e0e 50%,#050814 100%)',
         border: `1px solid ${badge.bg}50`,
@@ -240,7 +249,6 @@ export default function AnalysisReport({ result, homeTeam, awayTeam, competition
         textAlign: 'center',
         boxShadow: `0 0 40px ${badge.glow}`,
       }}>
-        {/* Teams row */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
           <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 20, color: '#fff', letterSpacing: '0.05em' }}>
             {homeTeam ?? 'Domicile'}
@@ -250,158 +258,70 @@ export default function AnalysisReport({ result, homeTeam, awayTeam, competition
             {awayTeam ?? 'Extérieur'}
           </span>
         </div>
-
         {(competition || dateDisplay) && (
           <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: "'Rajdhani', sans-serif", marginBottom: 14, letterSpacing: '0.05em' }}>
             {[competition, dateDisplay].filter(Boolean).join(' · ')}
           </p>
         )}
-
-        {/* Classification badge */}
         <div style={{
           display: 'inline-block',
-          background: badge.bg,
-          color: badge.text,
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: 26,
-          letterSpacing: '0.14em',
-          padding: '5px 28px',
-          borderRadius: 100,
+          background: badge.bg, color: badge.text,
+          fontFamily: "'Bebas Neue', sans-serif", fontSize: 26, letterSpacing: '0.14em',
+          padding: '5px 28px', borderRadius: 100,
           boxShadow: `0 4px 22px ${badge.glow}`,
         }}>
           {data.classification}
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────
-          2. SCORE + 3. BARRES DE PROBABILITÉ
-      ───────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        {/* Score circle */}
-        <div style={{
-          flex: '0 0 112px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 14,
-          padding: '14px 8px',
-          textAlign: 'center',
-        }}>
+        <div style={{ flex: '0 0 112px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '14px 8px', textAlign: 'center' }}>
           <ScoreCircle score={data.score} color={accent} />
-          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", marginTop: 7, letterSpacing: '0.07em' }}>
-            CONFIANCE
-          </p>
+          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", marginTop: 7, letterSpacing: '0.07em' }}>CONFIANCE</p>
         </div>
-
-        {/* Probability bars */}
-        <div style={{
-          flex: '1 1 160px',
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.07)',
-          borderRadius: 14,
-          padding: '14px 16px',
-        }}>
-          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", marginBottom: 14, letterSpacing: '0.07em' }}>
-            PROBABILITÉS
-          </p>
-          <ProbBar
-            label={`1 — ${homeTeam ?? 'Domicile'}`}
-            pct={p.home.pct} odds={p.home.odds}
-            accent={accent} highlight={topLabel === '1'}
-          />
-          <ProbBar
-            label="X — Nul"
-            pct={p.draw.pct} odds={p.draw.odds}
-            accent={accent} highlight={topLabel === 'X'}
-          />
-          <ProbBar
-            label={`2 — ${awayTeam ?? 'Extérieur'}`}
-            pct={p.away.pct} odds={p.away.odds}
-            accent={accent} highlight={topLabel === '2'}
-          />
+        <div style={{ flex: '1 1 160px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 14, padding: '14px 16px' }}>
+          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", marginBottom: 14, letterSpacing: '0.07em' }}>PROBABILITÉS</p>
+          <ProbBar label={`1 — ${homeTeam ?? 'Domicile'}`} pct={p.home.pct} odds={p.home.odds} accent={accent} highlight={topLabel === '1'} />
+          <ProbBar label="X — Nul" pct={p.draw.pct} odds={p.draw.odds} accent={accent} highlight={topLabel === 'X'} />
+          <ProbBar label={`2 — ${awayTeam ?? 'Extérieur'}`} pct={p.away.pct} odds={p.away.odds} accent={accent} highlight={topLabel === '2'} />
         </div>
       </div>
 
-      {/* ─────────────────────────────────────────────────
-          4. 10 SECTIONS ACCORDÉON
-      ───────────────────────────────────────────────── */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em' }}>
-            ANALYSE DETAILLEE
-          </p>
+          <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em' }}>ANALYSE DETAILLEE</p>
           <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => setOpen(new Set(data.sections.map(s => s.n)))}
-              style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.06em' }}>
-              TOUT OUVRIR
-            </button>
-            <button onClick={() => setOpen(new Set())}
-              style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.06em' }}>
-              REPLIER
-            </button>
+            <button onClick={() => setOpen(new Set(data.sections.map(s => s.n)))} style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.06em' }}>TOUT OUVRIR</button>
+            <button onClick={() => setOpen(new Set())} style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', background: 'transparent', border: 'none', cursor: 'pointer', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.06em' }}>REPLIER</button>
           </div>
         </div>
-
         {data.sections.map((section, i) => (
-          <SectionCard
-            key={section.n}
-            section={section}
-            shade={i % 2 === 0}
-            open={open.has(section.n)}
-            onToggle={() => toggle(section.n)}
-          />
+          <SectionCard key={section.n} section={section} shade={i % 2 === 0} open={open.has(section.n)} onToggle={() => toggle(section.n)} />
         ))}
       </div>
 
-      {/* ─────────────────────────────────────────────────
-          5. VERDICT FINAL
-      ───────────────────────────────────────────────── */}
-      <div style={{
-        background: 'linear-gradient(135deg,#120f00 0%,#0f0f0f 100%)',
-        border: '1.5px solid rgba(201,168,76,0.45)',
-        borderRadius: 14,
-        padding: '18px 18px 20px',
-        boxShadow: '0 4px 30px rgba(201,168,76,0.12)',
-      }}>
-        <p style={{ fontSize: 9, color: 'rgba(201,168,76,0.6)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.12em', marginBottom: 10 }}>
-          VERDICT FINAL
-        </p>
-
-        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#fff', letterSpacing: '0.05em', lineHeight: 1.1, marginBottom: 12 }}>
-          {data.verdict.bet}
-        </p>
-
+      <div style={{ background: 'linear-gradient(135deg,#120f00 0%,#0f0f0f 100%)', border: '1.5px solid rgba(201,168,76,0.45)', borderRadius: 14, padding: '18px 18px 20px', boxShadow: '0 4px 30px rgba(201,168,76,0.12)' }}>
+        <p style={{ fontSize: 9, color: 'rgba(201,168,76,0.6)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.12em', marginBottom: 10 }}>VERDICT FINAL</p>
+        <p style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, color: '#fff', letterSpacing: '0.05em', lineHeight: 1.1, marginBottom: 12 }}>{data.verdict.bet}</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
           {data.verdict.odds && (
-            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#C9A84C', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', padding: '3px 10px', borderRadius: 100 }}>
-              Cote {data.verdict.odds}
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#C9A84C', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.25)', padding: '3px 10px', borderRadius: 100 }}>Cote {data.verdict.odds}</span>
           )}
           {data.verdict.edge_pct != null && (
-            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#AAFF00', background: 'rgba(170,255,0,0.08)', border: '1px solid rgba(170,255,0,0.2)', padding: '3px 10px', borderRadius: 100 }}>
-              Edge +{data.verdict.edge_pct}%
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#AAFF00', background: 'rgba(170,255,0,0.08)', border: '1px solid rgba(170,255,0,0.2)', padding: '3px 10px', borderRadius: 100 }}>Edge +{data.verdict.edge_pct}%</span>
           )}
           {data.verdict.value_bet && (
-            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#fff', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.28)', padding: '3px 10px', borderRadius: 100 }}>
-              VALUE BET
-            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, fontFamily: "'Rajdhani', sans-serif", color: '#fff', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.28)', padding: '3px 10px', borderRadius: 100 }}>VALUE BET</span>
           )}
         </div>
-
         {data.verdict.top_bets?.length > 0 && (
           <div>
-            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em', marginBottom: 8 }}>
-              TOP PARIS
-            </p>
+            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.3)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em', marginBottom: 8 }}>TOP PARIS</p>
             <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
               {data.verdict.top_bets.map((bet, i) => (
                 <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, color: '#C9A84C', flexShrink: 0, minWidth: 16 }}>
-                    {i + 1}.
-                  </span>
-                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: "'Rajdhani', sans-serif", lineHeight: 1.5 }}>
-                    {bet}
-                  </span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 13, color: '#C9A84C', flexShrink: 0, minWidth: 16 }}>{i + 1}.</span>
+                  <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontFamily: "'Rajdhani', sans-serif", lineHeight: 1.5 }}>{bet}</span>
                 </li>
               ))}
             </ol>
@@ -409,5 +329,71 @@ export default function AnalysisReport({ result, homeTeam, awayTeam, competition
         )}
       </div>
     </div>
+  )
+}
+
+function DualAnalysisView({ deepseek, claude, homeTeam, awayTeam, competition, matchDate }: {
+  deepseek: string; claude: string; homeTeam?: string; awayTeam?: string; competition?: string; matchDate?: string
+}) {
+  const [tab, setTab] = useState<'deepseek' | 'claude'>('deepseek')
+  const active = tab === 'deepseek' ? deepseek : claude
+  const label = tab === 'deepseek' ? 'DeepSeek' : 'Claude'
+
+  const tabStyle = (t: 'deepseek' | 'claude') => ({
+    flex: 1,
+    padding: '8px 0',
+    background: tab === t ? (t === 'deepseek' ? 'rgba(201,168,76,0.15)' : 'rgba(107,154,255,0.15)') : 'transparent',
+    border: 'none',
+    borderBottom: tab === t ? `2px solid ${t === 'deepseek' ? '#C9A84C' : '#6B9AFF'}` : '2px solid rgba(255,255,255,0.07)',
+    color: tab === t ? (t === 'deepseek' ? '#C9A84C' : '#6B9AFF') : 'rgba(255,255,255,0.35)',
+    cursor: 'pointer',
+    fontFamily: "'Rajdhani', sans-serif",
+    fontWeight: 700,
+    fontSize: 12,
+    letterSpacing: '0.08em',
+    transition: 'all 0.2s',
+  })
+
+  return (
+    <div>
+      {/* Tab selector */}
+      <div style={{ display: 'flex', marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
+        <button style={tabStyle('deepseek')} onClick={() => setTab('deepseek')}>⚡ DEEPSEEK</button>
+        <button style={tabStyle('claude')} onClick={() => setTab('claude')}>🔵 CLAUDE</button>
+      </div>
+
+      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em', marginBottom: 12, textAlign: 'center' }}>
+        ANALYSE {label.toUpperCase()} — Double IA indépendante
+      </div>
+
+      <SinglePane result={active} homeTeam={homeTeam} awayTeam={awayTeam} competition={competition} matchDate={matchDate} />
+    </div>
+  )
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+export default function AnalysisReport({ result, homeTeam, awayTeam, competition, matchDate }: Props) {
+  const dual = parseDualResult(result)
+  if (dual) {
+    return (
+      <DualAnalysisView
+        deepseek={dual.deepseek}
+        claude={dual.claude}
+        homeTeam={homeTeam}
+        awayTeam={awayTeam}
+        competition={competition}
+        matchDate={matchDate}
+      />
+    )
+  }
+  return (
+    <SinglePane
+      result={result}
+      homeTeam={homeTeam}
+      awayTeam={awayTeam}
+      competition={competition}
+      matchDate={matchDate}
+    />
   )
 }

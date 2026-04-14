@@ -48,11 +48,22 @@ export function HeroSection() {
         </h1>
 
         {/* Subtitle */}
-        <p className="text-white/60 text-lg sm:text-xl max-w-2xl mx-auto mb-10 leading-relaxed animate-fade-in-up">
+        <p className="text-white/60 text-lg sm:text-xl max-w-2xl mx-auto mb-6 leading-relaxed animate-fade-in-up">
           Analyses sportives ultra-précises basées sur des données réelles.
           Fiabilité garantie entre{" "}
           <span className="text-[#C9A84C] font-semibold">65% et 85%</span>.
         </p>
+
+        {/* Dual AI badge */}
+        <div className="flex justify-center mb-10 animate-fade-in-up">
+          <div className="inline-flex items-center gap-2 border border-[#C9A84C]/30 bg-[#C9A84C]/5 rounded-full px-5 py-2">
+            <span className="text-[#C9A84C] text-sm font-semibold tracking-wide">
+              Propulsé par les 2 IA les plus puissantes du moment :
+            </span>
+            <span className="text-white font-bold text-sm">Claude (Anthropic) + DeepSeek</span>
+            <span className="text-white/50 text-xs">— pour des analyses inégalées</span>
+          </div>
+        </div>
 
         {/* Single CTA */}
         <div className="flex items-center justify-center mb-16 animate-fade-in-up">

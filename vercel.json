@@ -1,5 +1,10 @@
 {
   "framework": "nextjs",
+  "functions": {
+    "src/app/api/analyze/route.ts": {
+      "maxDuration": 25
+    }
+  },
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
