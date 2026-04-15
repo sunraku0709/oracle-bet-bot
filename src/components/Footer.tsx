@@ -1,4 +1,5 @@
 import Link from "next/link";
+import FooterCancelLink from "@/components/FooterCancelLink";
 
 const navLinks = [
   { label: "Accueil", href: "/" },
@@ -134,6 +135,7 @@ export function Footer() {
                   </Link>
                 </li>
               ))}
+              <FooterCancelLink />
             </ul>
           </div>
         </div>

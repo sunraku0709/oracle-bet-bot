@@ -24,6 +24,53 @@ type SubscriptionInfo = {
   analyses_used: number
   analyses_today: number
   current_period_end: string | null
+  stripe_subscription_id: string | null
+}
+
+function CancelModal({ onConfirm, onClose, loading }: {
+  onConfirm: () => void
+  onClose: () => void
+  loading: boolean
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+      style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
+      <div className="glass-card rounded-2xl p-8 max-w-sm w-full relative"
+        style={{ border: '1px solid rgba(239,68,68,0.3)' }}>
+        <div className="text-center mb-6">
+          <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4"
+            style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)' }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <h3 className="text-xl text-white mb-2" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
+            RÉSILIER L&apos;ABONNEMENT
+          </h3>
+          <p className="text-white/50 text-sm leading-relaxed">
+            Votre abonnement sera annulé <strong className="text-white/70">immédiatement</strong>. Vous perdrez l&apos;accès aux analyses dès maintenant.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} disabled={loading}
+            className="flex-1 py-3 rounded-xl text-sm font-semibold tracking-wider text-white/60 hover:text-white border border-white/10 hover:border-white/25 transition-all disabled:opacity-40">
+            ANNULER
+          </button>
+          <button onClick={onConfirm} disabled={loading}
+            className="flex-1 py-3 rounded-xl text-sm font-semibold tracking-wider transition-all disabled:opacity-40"
+            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#EF4444' }}>
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <span className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                EN COURS...
+              </span>
+            ) : 'OUI, RÉSILIER'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 const SPORTS = [
@@ -71,6 +118,9 @@ function DashboardContent() {
   const [analyses, setAnalyses] = useState<Analysis[]>([])
   const [selectedAnalysis, setSelectedAnalysis] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'new' | 'history'>('new')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
+  const [cancelError, setCancelError] = useState('')
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -90,7 +140,7 @@ function DashboardContent() {
   const refreshSubscription = async (userId: string) => {
     const { data: sub } = await supabase
       .from('subscriptions')
-      .select('plan, analyses_used, current_period_end, status')
+      .select('plan, analyses_used, current_period_end, status, stripe_subscription_id')
       .eq('user_id', userId)
       .eq('status', 'active')
       .single()
@@ -109,9 +159,29 @@ function DashboardContent() {
         analyses_used: sub.analyses_used || 0,
         analyses_today: count ?? 0,
         current_period_end: sub.current_period_end,
+        stripe_subscription_id: sub.stripe_subscription_id ?? null,
       })
     } else {
       setSubscription(null)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true)
+    setCancelError('')
+    try {
+      const res = await fetch('/api/stripe/cancel', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) {
+        setCancelError(data.error || 'Erreur lors de la résiliation.')
+        setCancelLoading(false)
+        return
+      }
+      setShowCancelModal(false)
+      setSubscription(null)
+    } catch {
+      setCancelError('Erreur réseau. Veuillez réessayer.')
+      setCancelLoading(false)
     }
   }
 
@@ -217,6 +287,15 @@ function DashboardContent() {
 
   return (
     <div className="min-h-screen bg-[#080808] flex flex-col">
+
+      {/* Cancel confirmation modal */}
+      {showCancelModal && (
+        <CancelModal
+          onConfirm={handleCancelSubscription}
+          onClose={() => { setShowCancelModal(false); setCancelError('') }}
+          loading={cancelLoading}
+        />
+      )}
 
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/[0.06] px-4 md:px-6 py-3"
@@ -490,10 +569,25 @@ function DashboardContent() {
         )}
       </div>
 
-      <footer className="border-t border-white/[0.05] px-6 py-4 text-center">
-        <p className="text-xs text-white/20">
-          ⚠️ Les paris sportifs comportent des risques. Jouez de manière responsable. Interdit aux mineurs. Joueurs Info Service : 09 74 75 13 13
-        </p>
+      <footer className="border-t border-white/[0.05] px-6 py-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p className="text-xs text-white/20 text-center sm:text-left">
+            ⚠️ Les paris sportifs comportent des risques. Jouez de manière responsable. Interdit aux mineurs. Joueurs Info Service : 09 74 75 13 13
+          </p>
+          {subscription && (
+            <div className="flex flex-col items-end gap-1 shrink-0">
+              {cancelError && (
+                <p className="text-red-400 text-xs">{cancelError}</p>
+              )}
+              <button
+                onClick={() => { setCancelError(''); setShowCancelModal(true) }}
+                className="text-xs text-white/25 hover:text-red-400 transition-colors underline underline-offset-2"
+              >
+                Se désabonner
+              </button>
+            </div>
+          )}
+        </div>
       </footer>
     </div>
   )
