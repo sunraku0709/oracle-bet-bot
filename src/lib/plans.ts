@@ -15,8 +15,8 @@ export const PLANS: Record<PlanId, {
   starter: {
     id: 'starter',
     name: 'STARTER',
-    priceEur: 499,
-    priceLabel: '4,99€',
+    priceEur: 999,
+    priceLabel: '9,99€',
     analysesPerDay: 1,
     badge: null,
     color: '#9CA3AF',
@@ -31,8 +31,8 @@ export const PLANS: Record<PlanId, {
   standard: {
     id: 'standard',
     name: 'STANDARD',
-    priceEur: 999,
-    priceLabel: '9,99€',
+    priceEur: 1999,
+    priceLabel: '19,99€',
     analysesPerDay: 4,
     badge: 'POPULAIRE',
     color: '#C9A84C',
@@ -48,8 +48,8 @@ export const PLANS: Record<PlanId, {
   premium: {
     id: 'premium',
     name: 'PREMIUM',
-    priceEur: 1999,
-    priceLabel: '19,99€',
+    priceEur: 2999,
+    priceLabel: '29,99€',
     analysesPerDay: null,
     badge: 'MEILLEUR CHOIX',
     color: '#F0D080',
