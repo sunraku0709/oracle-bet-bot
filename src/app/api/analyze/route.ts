@@ -44,7 +44,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Admin bypass — unlimited access regardless of subscription
-    const isAdminUser = userEmail === 'test@oracle-bet.app'
+    const ADMIN_EMAILS = ['test@oracle-bet.app', 'admin@oracle-bet.com']
+    const isAdminUser = userEmail !== null && ADMIN_EMAILS.includes(userEmail)
 
     // All DB reads/writes use the service-role client (bypasses RLS, works for both auth paths)
     const { createClient } = await import('@supabase/supabase-js')
