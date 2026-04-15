@@ -6,14 +6,16 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
 
+const ACTIVE_PLANS: PlanId[] = ['starter', 'standard', 'premium']
+
 function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: PlanId) => void }) {
   return (
     <div className="mb-6">
-      <p className="text-xs font-semibold text-gray-400 mb-3 tracking-widest text-center" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-        CHOISISSEZ VOTRE FORFAIT
+      <p className="text-xs font-semibold text-gray-400 mb-3 tracking-widest text-center uppercase">
+        Choisissez votre forfait
       </p>
       <div className="grid grid-cols-3 gap-2">
-        {(['starter', 'standard', 'premium'] as PlanId[]).map((planId) => {
+        {ACTIVE_PLANS.map((planId) => {
           const plan = PLANS[planId]
           const isSelected = selected === planId
           return (
@@ -21,19 +23,26 @@ function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: Pl
               key={planId}
               type="button"
               onClick={() => onSelect(planId)}
-              className="flex flex-col items-center p-3 rounded-xl border transition-all text-center"
+              className="relative flex flex-col items-center p-3 rounded-xl border transition-all text-center"
               style={{
                 borderColor: isSelected ? plan.color : 'rgba(255,255,255,0.08)',
-                background: isSelected ? `${plan.color}15` : 'rgba(255,255,255,0.03)',
+                background: isSelected ? `${plan.color}18` : 'rgba(255,255,255,0.03)',
+                boxShadow: isSelected ? `0 0 16px ${plan.color}30` : 'none',
               }}
             >
-              <span className="text-xs font-bold tracking-widest" style={{ color: plan.color, fontFamily: "'Rajdhani', sans-serif" }}>
+              {plan.badge && (
+                <span className="absolute -top-2 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full text-[9px] font-bold tracking-widest whitespace-nowrap"
+                  style={{ backgroundColor: plan.color, color: '#0A0A0A' }}>
+                  {plan.badge}
+                </span>
+              )}
+              <span className="text-xs font-bold tracking-widest mt-1" style={{ color: plan.color }}>
                 {plan.name}
               </span>
               <span className="text-base font-bold mt-1" style={{ color: isSelected ? plan.color : 'rgba(255,255,255,0.7)', fontFamily: "'Bebas Neue', sans-serif" }}>
                 {plan.priceLabel}
               </span>
-              <span className="text-[10px] text-gray-500 mt-0.5" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+              <span className="text-[10px] text-gray-500 mt-0.5">
                 {plan.analysesPerDay === null ? '∞/jr' : `${plan.analysesPerDay}/jr`}
               </span>
             </button>
@@ -47,7 +56,10 @@ function PlanPicker({ selected, onSelect }: { selected: PlanId; onSelect: (p: Pl
 function AuthContent() {
   const searchParams = useSearchParams()
   const initialMode = searchParams.get('mode') === 'register' ? 'register' : 'login'
-  const initialPlan = getPlanById(searchParams.get('plan'))
+  const rawPlan = searchParams.get('plan')
+  const initialPlan: PlanId = (ACTIVE_PLANS as string[]).includes(rawPlan ?? '')
+    ? (rawPlan as PlanId)
+    : 'standard'
 
   const [mode, setMode] = useState<'login' | 'register'>(initialMode)
   const [selectedPlan, setSelectedPlan] = useState<PlanId>(initialPlan)
@@ -57,10 +69,9 @@ function AuthContent() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const router = useRouter()
 
-  // Keep plan in sync when URL changes
   useEffect(() => {
     const plan = searchParams.get('plan')
-    if (plan) setSelectedPlan(getPlanById(plan))
+    if (plan && (ACTIVE_PLANS as string[]).includes(plan)) setSelectedPlan(plan as PlanId)
     if (searchParams.get('mode') === 'register') setMode('register')
   }, [searchParams])
 
@@ -76,10 +87,18 @@ function AuthContent() {
         window.location.href = data.url
         return
       }
+      setMessage({
+        type: 'error',
+        text: data.error || 'Erreur paiement Stripe. Réessayez depuis la page abonnement.',
+      })
+      setLoading(false)
     } catch {
-      // Stripe unavailable — go to dashboard anyway
+      setMessage({
+        type: 'error',
+        text: 'Erreur réseau lors du paiement. Réessayez depuis la page abonnement.',
+      })
+      setLoading(false)
     }
-    router.push('/dashboard')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -89,6 +108,7 @@ function AuthContent() {
 
     try {
       if (mode === 'register') {
+        // Step 1: create account (no payment yet)
         const res = await fetch('/api/auth/signup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -100,6 +120,7 @@ function AuthContent() {
           setLoading(false)
           return
         }
+        // Step 2: sign in
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
         if (signInError) {
           setMessage({ type: 'success', text: 'Compte créé ! Connectez-vous maintenant.' })
@@ -107,17 +128,16 @@ function AuthContent() {
           setLoading(false)
           return
         }
+        // Step 3: redirect to Stripe checkout
         await redirectToCheckout(selectedPlan)
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) {
           const msg = error.message?.toLowerCase() || ''
           if (msg.includes('invalid') || msg.includes('credentials')) {
             setMessage({ type: 'error', text: 'Email ou mot de passe incorrect.' })
           } else if (msg.includes('email') && msg.includes('confirm')) {
             setMessage({ type: 'error', text: 'Email non confirmé. Contactez le support.' })
-          } else if (msg.includes('network') || msg.includes('fetch')) {
-            setMessage({ type: 'error', text: 'Erreur réseau. Vérifiez votre connexion.' })
           } else {
             setMessage({ type: 'error', text: error.message || 'Erreur de connexion.' })
           }
@@ -125,8 +145,18 @@ function AuthContent() {
           return
         }
         const planParam = searchParams.get('plan')
-        if (planParam) {
-          await redirectToCheckout(getPlanById(planParam))
+        if (planParam && signInData.user) {
+          const { data: existingSub } = await supabase
+            .from('subscriptions')
+            .select('status')
+            .eq('user_id', signInData.user.id)
+            .eq('status', 'active')
+            .single()
+          if (existingSub) {
+            router.push('/dashboard')
+          } else {
+            await redirectToCheckout(getPlanById(planParam))
+          }
         } else {
           router.push('/dashboard')
         }
@@ -148,67 +178,59 @@ function AuthContent() {
           backgroundSize: '50px 50px',
         }}
       />
+      {/* Radial glow */}
+      <div className="fixed inset-0 pointer-events-none"
+        style={{ background: 'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%)' }} />
 
       {/* Logo */}
       <Link href="/" className="mb-8 group">
         <span className="font-bebas text-3xl tracking-widest" style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
-          <span style={{ color: '#C9A84C' }}>⚡ ORACLE</span>
+          <span className="gold-gradient">⚡ ORACLE</span>
           <span className="text-white"> BET</span>
         </span>
       </Link>
 
       {/* Card */}
-      <div className="card-dark rounded-2xl p-8 w-full max-w-md relative z-10">
+      <div className="glass-card rounded-2xl p-8 w-full max-w-md relative z-10">
         {/* Tabs */}
         <div className="flex mb-8 bg-white/5 rounded-xl p-1">
-          <button
-            onClick={() => { setMode('login'); setMessage(null) }}
-            className={`flex-1 py-2.5 rounded-lg font-semibold text-sm tracking-widest transition-all ${
-              mode === 'login' ? 'btn-gold' : 'text-gray-400 hover:text-white'
-            }`}
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
-          >
-            CONNEXION
-          </button>
-          <button
-            onClick={() => { setMode('register'); setMessage(null) }}
-            className={`flex-1 py-2.5 rounded-lg font-semibold text-sm tracking-widest transition-all ${
-              mode === 'register' ? 'btn-gold' : 'text-gray-400 hover:text-white'
-            }`}
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
-          >
-            INSCRIPTION
-          </button>
+          {(['login', 'register'] as const).map((m) => (
+            <button key={m}
+              onClick={() => { setMode(m); setMessage(null) }}
+              className={`flex-1 py-2.5 rounded-lg font-semibold text-sm tracking-widest transition-all ${
+                mode === m ? 'btn-gold' : 'text-gray-400 hover:text-white'
+              }`}>
+              {m === 'login' ? 'CONNEXION' : 'INSCRIPTION'}
+            </button>
+          ))}
         </div>
 
-        <h1
-          className="text-3xl text-center mb-2"
-          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em', color: '#C9A84C' }}
-        >
+        <h1 className="text-3xl text-center mb-2 gold-gradient"
+          style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
           {mode === 'login' ? 'BIENVENUE' : 'CRÉER UN COMPTE'}
         </h1>
-        <p className="text-gray-400 text-center mb-6 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-          {mode === 'login' ? 'Accédez à vos analyses IA' : "Choisissez votre forfait et commencez"}
+        <p className="text-gray-400 text-center mb-6 text-sm">
+          {mode === 'login' ? 'Accédez à vos analyses IA' : 'Compte gratuit · paiement à l\'étape suivante'}
         </p>
 
-        {/* Plan picker — only on register */}
         {mode === 'register' && (
           <PlanPicker selected={selectedPlan} onSelect={setSelectedPlan} />
         )}
 
-        {/* Login: plan reminder if plan in URL */}
         {mode === 'login' && searchParams.get('plan') && (
           <div className="mb-4 p-3 rounded-xl border border-[#C9A84C]/30 bg-[#C9A84C]/5 text-center">
-            <p className="text-xs text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              Connectez-vous pour activer le plan <strong>{PLANS[getPlanById(searchParams.get('plan'))].name}</strong> — {PLANS[getPlanById(searchParams.get('plan'))].priceLabel}/mois
+            <p className="text-xs text-[#C9A84C]">
+              Connectez-vous pour activer le plan{' '}
+              <strong>{PLANS[getPlanById(searchParams.get('plan'))].name}</strong>{' '}
+              — {PLANS[getPlanById(searchParams.get('plan'))].priceLabel}/mois
             </p>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2 tracking-wider" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              ADRESSE EMAIL
+            <label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wider uppercase">
+              Adresse email
             </label>
             <input
               type="email"
@@ -217,13 +239,12 @@ function AuthContent() {
               required
               placeholder="votre@email.com"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#C9A84C] transition-colors"
-              style={{ fontFamily: "'Rajdhani', sans-serif" }}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-300 mb-2 tracking-wider" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              MOT DE PASSE
+            <label className="block text-xs font-semibold text-gray-300 mb-2 tracking-wider uppercase">
+              Mot de passe
             </label>
             <input
               type="password"
@@ -233,15 +254,15 @@ function AuthContent() {
               minLength={6}
               placeholder="••••••••"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#C9A84C] transition-colors"
-              style={{ fontFamily: "'Rajdhani', sans-serif" }}
             />
           </div>
 
           {message && (
-            <div
-              className={`p-3 rounded-lg text-sm ${message.type === 'error' ? 'bg-red-500/10 border border-red-500/30 text-red-400' : 'bg-green-500/10 border border-green-500/30 text-green-400'}`}
-              style={{ fontFamily: "'Rajdhani', sans-serif" }}
-            >
+            <div className={`p-3 rounded-lg text-sm ${
+              message.type === 'error'
+                ? 'bg-red-500/10 border border-red-500/30 text-red-400'
+                : 'bg-green-500/10 border border-green-500/30 text-green-400'
+            }`}>
               {message.text}
             </div>
           )}
@@ -250,33 +271,38 @@ function AuthContent() {
             type="submit"
             disabled={loading}
             className="btn-gold w-full py-3.5 rounded-xl text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed mt-2"
-            style={{ fontFamily: "'Rajdhani', sans-serif" }}
           >
             {loading
               ? 'CHARGEMENT...'
               : mode === 'login'
               ? 'SE CONNECTER'
-              : `S'INSCRIRE · ${PLANS[selectedPlan].priceLabel}/mois`}
+              : 'CRÉER MON COMPTE →'}
           </button>
+
+          {mode === 'register' && !loading && (
+            <p className="text-center text-xs text-gray-500">
+              Paiement sécurisé Stripe à l&apos;étape suivante
+            </p>
+          )}
         </form>
 
         {mode === 'register' && (
-          <p className="mt-6 text-xs text-gray-500 text-center" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+          <p className="mt-6 text-xs text-gray-500 text-center">
             En vous inscrivant, vous acceptez nos{' '}
-            <Link href="#" className="text-[#C9A84C] hover:underline">Conditions d&apos;utilisation</Link>{' '}
+            <Link href="#" className="text-[#C9A84C] hover:underline">CGU</Link>{' '}
             et notre{' '}
             <Link href="#" className="text-[#C9A84C] hover:underline">Politique de confidentialité</Link>.
           </p>
         )}
 
         <div className="mt-6 pt-6 border-t border-white/5 text-center">
-          <p className="text-xs text-gray-600" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+          <p className="text-xs text-gray-600">
             ⚠️ Les paris sportifs comportent des risques. +18 uniquement.
           </p>
         </div>
       </div>
 
-      <Link href="/" className="mt-6 text-gray-500 hover:text-[#C9A84C] text-sm transition-colors" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+      <Link href="/" className="mt-6 text-gray-500 hover:text-[#C9A84C] text-sm transition-colors">
         ← Retour à l&apos;accueil
       </Link>
     </div>
@@ -287,7 +313,7 @@ export default function AuthPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>Chargement...</div>
+        <div className="text-[#C9A84C]">Chargement...</div>
       </div>
     }>
       <AuthContent />

@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     userId = created.user.id
   }
 
-  // Upsert Premium active subscription (no Stripe needed)
+  // Upsert Gold active subscription (no Stripe needed, unlimited access)
   const now = new Date()
   const oneYearFromNow = new Date(now)
   oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1)
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     stripe_customer_id: 'test_customer_' + userId.slice(0, 8),
     stripe_subscription_id: 'test_sub_' + userId.slice(0, 8),
     status: 'active',
-    plan: 'premium',
+    plan: 'gold',
     analyses_used: 0,
     billing_period_start: now.toISOString(),
     current_period_end: oneYearFromNow.toISOString(),
@@ -96,9 +96,9 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    message: 'Compte test Premium créé/réinitialisé avec succès',
+    message: 'Compte test Gold créé/réinitialisé avec succès (accès illimité)',
     credentials: { email, password },
-    plan: 'premium',
+    plan: 'gold',
     validUntil: oneYearFromNow.toISOString().split('T')[0],
     userId,
     nextStep: 'Connectez-vous sur /auth avec ces identifiants',

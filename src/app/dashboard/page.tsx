@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
+import DashboardInstallCard from '@/components/DashboardInstallCard'
+import AnalysisReport, { parseAnalysisResult } from '@/components/AnalysisReport'
 
 type Analysis = {
   id: string
@@ -38,7 +40,7 @@ function UsageBadge({ sub }: { sub: SubscriptionInfo }) {
   if (limit === null) {
     return (
       <span className="px-3 py-1 rounded-full text-xs font-bold tracking-widest"
-        style={{ background: 'rgba(170,255,0,0.1)', color: '#AAFF00', border: '1px solid rgba(170,255,0,0.3)', fontFamily: "'Rajdhani', sans-serif" }}>
+        style={{ background: 'rgba(201,168,76,0.1)', color: '#C9A84C', border: '1px solid rgba(201,168,76,0.25)' }}>
         ∞ ILLIMITÉ · {plan.name}
       </span>
     )
@@ -46,17 +48,15 @@ function UsageBadge({ sub }: { sub: SubscriptionInfo }) {
 
   const remaining = limit - used
   const pct = Math.min((used / limit) * 100, 100)
-  const color = remaining === 0 ? '#EF4444' : remaining === 1 ? '#F59E0B' : '#AAFF00'
+  const color = remaining === 0 ? '#EF4444' : remaining === 1 ? '#F59E0B' : '#C9A84C'
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs font-semibold" style={{ color: '#C9A84C', fontFamily: "'Rajdhani', sans-serif" }}>
-        {plan.name}
-      </span>
-      <div className="w-20 h-1.5 bg-white/10 rounded-full overflow-hidden">
+    <div className="flex items-center gap-2.5">
+      <span className="text-xs font-semibold" style={{ color: '#C9A84C' }}>{plan.name}</span>
+      <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color }} />
       </div>
-      <span className="text-xs font-semibold" style={{ color, fontFamily: "'Rajdhani', sans-serif" }}>
+      <span className="text-xs font-semibold" style={{ color }}>
         {remaining}/{limit}/jr
       </span>
     </div>
@@ -120,15 +120,10 @@ function DashboardContent() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth'); return }
       setUser(user)
-
       await refreshSubscription(user.id)
-
       const { data: hist } = await supabase
-        .from('analyses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30)
+        .from('analyses').select('*').eq('user_id', user.id)
+        .order('created_at', { ascending: false }).limit(30)
       if (hist) setAnalyses(hist)
       setLoading(false)
     }
@@ -137,16 +132,13 @@ function DashboardContent() {
 
   useEffect(() => {
     if (searchParams.get('success') === 'true') {
-      setTimeout(() => {
-        if (user) refreshSubscription(user.id)
-      }, 2000)
+      setTimeout(() => { if (user) refreshSubscription(user.id) }, 2000)
     }
   }, [searchParams, user])
 
   const handleSportChange = (s: string) => {
     setSport(s)
-    const found = SPORTS.find(x => x.value === s)
-    setCompetition(found?.competitions[0] || '')
+    setCompetition(SPORTS.find(x => x.value === s)?.competitions[0] || '')
   }
 
   const handleAnalyze = async (e: React.FormEvent) => {
@@ -174,10 +166,8 @@ function DashboardContent() {
       }
 
       setResult(data.result)
-      // Refresh subscription counter
       if (user) await refreshSubscription(user.id)
 
-      // Refresh history
       const { data: hist } = await supabase
         .from('analyses').select('*').eq('user_id', user!.id)
         .order('created_at', { ascending: false }).limit(30)
@@ -191,12 +181,16 @@ function DashboardContent() {
     }
   }
 
-  const formatDate = (d: string) => new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const formatDate = (d: string) =>
+    new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   const getScoreBadge = (result: string) => {
-    if (result.includes('GOLD')) return { label: 'GOLD', color: '#C9A84C' }
-    if (result.includes('SILVER')) return { label: 'SILVER', color: '#9CA3AF' }
-    if (result.includes('NO BET')) return { label: 'NO BET', color: '#EF4444' }
+    const data = parseAnalysisResult(result)
+    const cls = data?.classification
+      ?? (result.includes('GOLD') ? 'GOLD' : result.includes('SILVER') ? 'SILVER' : result.includes('NO BET') ? 'NO BET' : null)
+    if (cls === 'GOLD')   return { label: 'GOLD',   color: '#C9A84C' }
+    if (cls === 'SILVER') return { label: 'SILVER', color: '#9CA3AF' }
+    if (cls === 'NO BET') return { label: 'NO BET', color: '#EF4444' }
     return null
   }
 
@@ -207,51 +201,53 @@ function DashboardContent() {
     return (subscription.analyses_today || 0) < limit
   }
 
+  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-xl px-4 py-3 text-white placeholder-white/25 focus:outline-none focus:border-[#C9A84C]/60 focus:bg-white/[0.06] transition-all text-sm"
+  const labelClass = "block text-xs font-semibold text-white/40 mb-2 tracking-widest uppercase"
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
+      <div className="min-h-screen bg-[#080808] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>Chargement...</p>
+          <div className="w-10 h-10 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-[#C9A84C] text-sm">Chargement...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex flex-col">
+    <div className="min-h-screen bg-[#080808] flex flex-col">
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-[#0A0A0A]/95 backdrop-blur border-b border-[#C9A84C]/10 px-4 md:px-6 py-3">
+      <header className="sticky top-0 z-50 border-b border-white/[0.06] px-4 md:px-6 py-3"
+        style={{ background: 'rgba(8,8,8,0.95)', backdropFilter: 'blur(20px)' }}>
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/" style={{ fontFamily: "'Bebas Neue', sans-serif" }} className="text-2xl tracking-widest flex-shrink-0">
-            <span style={{ color: '#C9A84C' }}>⚡ ORACLE</span>
+          <Link href="/" className="text-2xl tracking-widest flex-shrink-0"
+            style={{ fontFamily: "'Bebas Neue', sans-serif" }}>
+            <span className="gold-gradient">⚡ ORACLE</span>
             <span className="text-white"> BET</span>
           </Link>
 
           <div className="flex items-center gap-3 flex-wrap justify-end">
-            {/* Usage display */}
             {subscription && <UsageBadge sub={subscription} />}
 
-            <span className="hidden md:block text-gray-500 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-              {user?.email}
-            </span>
+            <span className="hidden md:block text-white/25 text-xs">{user?.email}</span>
 
             {!subscription && (
-              <Link href="/abonnement" className="btn-gold px-4 py-2 rounded-lg text-xs tracking-widest">
+              <Link href="/auth?mode=register" className="btn-gold px-4 py-2 rounded-lg text-xs tracking-widest">
                 S&apos;ABONNER
               </Link>
             )}
             {subscription && PLANS[subscription.plan].analysesPerDay !== null &&
               (subscription.analyses_today || 0) >= (PLANS[subscription.plan].analysesPerDay ?? 0) && (
-              <Link href="/abonnement" className="btn-gold px-4 py-2 rounded-lg text-xs tracking-widest animate-pulse-gold">
+              <Link href="/auth?mode=register" className="btn-gold px-4 py-2 rounded-lg text-xs tracking-widest animate-pulse-gold">
                 UPGRADE
               </Link>
             )}
 
             <button
               onClick={async () => { await supabase.auth.signOut(); router.push('/') }}
-              className="btn-outline-gold px-4 py-2 rounded-lg text-xs tracking-widest"
-            >
+              className="btn-outline-gold px-4 py-2 rounded-lg text-xs tracking-widest">
               DÉCONNEXION
             </button>
           </div>
@@ -259,10 +255,11 @@ function DashboardContent() {
       </header>
 
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-6 py-8">
+
         {/* Success banner */}
         {searchParams.get('success') === 'true' && (
-          <div className="mb-6 p-4 bg-[#AAFF00]/10 border border-[#AAFF00]/30 rounded-xl text-center">
-            <p className="text-[#AAFF00] font-semibold" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+          <div className="mb-6 p-4 bg-emerald-500/8 border border-emerald-500/25 rounded-xl text-center">
+            <p className="text-emerald-400 font-semibold text-sm">
               ✓ Abonnement activé ! Vous pouvez maintenant lancer vos analyses.
             </p>
           </div>
@@ -270,49 +267,48 @@ function DashboardContent() {
 
         {/* No subscription banner */}
         {!subscription && (
-          <div className="mb-6 p-4 bg-[#C9A84C]/10 border border-[#C9A84C]/30 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="mb-6 p-5 glass-card rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 border-[#C9A84C]/25">
             <div>
-              <p className="font-semibold text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                ⚡ Choisissez votre plan pour accéder aux analyses
-              </p>
-              <p className="text-gray-400 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                Starter 4,99€ · Standard 9,99€ · Premium 19,99€/mois
-              </p>
+              <p className="font-semibold text-[#C9A84C] text-sm">⚡ Choisissez votre plan pour accéder aux analyses</p>
+              <p className="text-white/35 text-xs mt-1">Starter 4,99€ · Standard 9,99€ · Premium 19,99€/mois</p>
             </div>
-            <Link href="/abonnement" className="btn-gold px-6 py-2.5 rounded-lg text-sm tracking-widest whitespace-nowrap">
+            <Link href="/auth?mode=register" className="btn-gold px-6 py-2.5 rounded-lg text-xs tracking-widest whitespace-nowrap">
               VOIR LES PLANS
             </Link>
           </div>
         )}
 
+        <DashboardInstallCard />
+
         {/* Tabs */}
-        <div className="flex gap-2 mb-8 bg-white/[0.03] rounded-xl p-1 border border-white/5 w-fit">
+        <div className="flex gap-1.5 mb-8 bg-white/[0.03] rounded-xl p-1 border border-white/[0.05] w-fit">
           {(['new', 'history'] as const).map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-5 py-2.5 rounded-lg text-sm font-semibold tracking-widest transition-all ${activeTab === tab ? 'btn-gold' : 'text-gray-400 hover:text-white'}`}
-              style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+              className={`px-5 py-2.5 rounded-lg text-xs font-semibold tracking-widest transition-all ${activeTab === tab ? 'btn-gold' : 'text-white/40 hover:text-white'}`}>
               {tab === 'new' ? 'NOUVELLE ANALYSE' : `HISTORIQUE (${analyses.length})`}
             </button>
           ))}
         </div>
 
+        {/* ── New analysis tab ── */}
         {activeTab === 'new' && (
-          <div className="grid md:grid-cols-2 gap-8">
+          <div className="grid md:grid-cols-2 gap-6">
+
             {/* Form */}
-            <div className="card-dark rounded-2xl p-6">
-              <h2 className="text-2xl mb-6" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em', color: '#C9A84C' }}>
+            <div className="glass-card rounded-2xl p-6">
+              <h2 className="text-2xl mb-6 gold-gradient"
+                style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
                 ANALYSER UN MATCH
               </h2>
 
               <form onSubmit={handleAnalyze} className="space-y-4">
-                {/* Sport selector */}
+                {/* Sport */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 tracking-widest" style={{ fontFamily: "'Rajdhani', sans-serif" }}>SPORT</label>
+                  <label className={labelClass}>Sport</label>
                   <div className="flex gap-2">
                     {SPORTS.map(s => (
                       <button key={s.value} type="button" onClick={() => handleSportChange(s.value)}
-                        className={`flex-1 py-2 rounded-lg text-xs font-semibold tracking-wider transition-all ${sport === s.value ? 'btn-gold' : 'bg-white/5 text-gray-400 hover:text-white border border-white/10'}`}
-                        style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                        className={`flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wider transition-all ${sport === s.value ? 'btn-gold' : 'bg-white/[0.04] text-white/40 hover:text-white border border-white/8'}`}>
                         {s.value}
                       </button>
                     ))}
@@ -321,10 +317,9 @@ function DashboardContent() {
 
                 {/* Competition */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 tracking-widest" style={{ fontFamily: "'Rajdhani', sans-serif" }}>COMPÉTITION</label>
-                  <select value={competition} onChange={e => setCompetition(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#C9A84C] transition-colors"
-                    style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                  <label className={labelClass}>Compétition</label>
+                  <select value={competition} onChange={e => setCompetition(e.target.value)} className={inputClass}
+                    style={{ colorScheme: 'dark' }}>
                     {SPORTS.find(s => s.value === sport)?.competitions.map(c => (
                       <option key={c} value={c} className="bg-[#1a1a1a]">{c}</option>
                     ))}
@@ -338,51 +333,49 @@ function DashboardContent() {
                     { label: 'EXTÉRIEUR', value: awayTeam, setter: setAwayTeam, ph: 'Ex: Bayern' },
                   ].map(({ label, value, setter, ph }) => (
                     <div key={label}>
-                      <label className="block text-xs font-semibold text-gray-400 mb-2 tracking-widest" style={{ fontFamily: "'Rajdhani', sans-serif" }}>{label}</label>
-                      <input type="text" value={value} onChange={e => setter(e.target.value)} placeholder={ph}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-[#C9A84C] transition-colors"
-                        style={{ fontFamily: "'Rajdhani', sans-serif" }} />
+                      <label className={labelClass}>{label}</label>
+                      <input type="text" value={value} onChange={e => setter(e.target.value)}
+                        placeholder={ph} className={inputClass} />
                     </div>
                   ))}
                 </div>
 
                 {/* Date */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 tracking-widest" style={{ fontFamily: "'Rajdhani', sans-serif" }}>DATE DU MATCH</label>
+                  <label className={labelClass}>Date du match</label>
                   <input type="date" value={matchDate} onChange={e => setMatchDate(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-[#C9A84C] transition-colors"
-                    style={{ fontFamily: "'Rajdhani', sans-serif", colorScheme: 'dark' }} />
+                    className={inputClass} style={{ colorScheme: 'dark' }} />
                 </div>
 
                 {/* Odds */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-400 mb-2 tracking-widest" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                    COTES <span className="text-gray-600 normal-case font-normal">(optionnel)</span>
+                  <label className={labelClass}>
+                    Cotes <span className="text-white/20 normal-case font-normal">(optionnel)</span>
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     {[
-                      { ph: '1 (Dom)', val: oddsHome, set: setOddsHome },
+                      { ph: '1 (Dom.)', val: oddsHome, set: setOddsHome },
                       { ph: 'X (Nul)', val: oddsDraw, set: setOddsDraw },
-                      { ph: '2 (Ext)', val: oddsAway, set: setOddsAway },
+                      { ph: '2 (Ext.)', val: oddsAway, set: setOddsAway },
                     ].map(({ ph, val, set }) => (
-                      <input key={ph} type="text" value={val} onChange={e => set(e.target.value)} placeholder={ph}
-                        className="bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-white placeholder-gray-600 focus:outline-none focus:border-[#C9A84C] transition-colors text-sm"
-                        style={{ fontFamily: "'Rajdhani', sans-serif" }} />
+                      <input key={ph} type="text" value={val} onChange={e => set(e.target.value)}
+                        placeholder={ph}
+                        className="bg-white/[0.04] border border-white/8 rounded-xl px-3 py-2.5 text-white placeholder-white/20 focus:outline-none focus:border-[#C9A84C]/60 transition-all text-sm" />
                     ))}
                   </div>
                 </div>
 
                 {error && (
-                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                  <div className="p-3 bg-red-500/8 border border-red-500/25 rounded-xl text-red-400 text-xs">
                     {error}
                     {error.includes('Limite') && (
-                      <Link href="/abonnement" className="ml-2 underline text-[#C9A84C]">→ Upgrader</Link>
+                      <Link href="/auth?mode=register" className="ml-2 underline text-[#C9A84C]">→ Upgrader</Link>
                     )}
                   </div>
                 )}
 
                 <button type="submit" disabled={analysisLoading || !canAnalyze()}
-                  className="btn-gold w-full py-4 rounded-xl text-sm tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">
+                  className="btn-gold w-full py-4 rounded-xl text-xs tracking-widest disabled:opacity-40 disabled:cursor-not-allowed">
                   {analysisLoading ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="w-4 h-4 border-2 border-[#0A0A0A] border-t-transparent rounded-full animate-spin" />
@@ -392,49 +385,42 @@ function DashboardContent() {
                 </button>
 
                 {!canAnalyze() && subscription && (
-                  <p className="text-center text-sm text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                    <Link href="/abonnement" className="underline">Passer au plan supérieur →</Link>
+                  <p className="text-center text-xs text-[#C9A84C]">
+                    <Link href="/auth?mode=register" className="underline">Passer au plan supérieur →</Link>
                   </p>
                 )}
               </form>
             </div>
 
             {/* Result */}
-            <div ref={resultRef} className="card-dark rounded-2xl p-6 flex flex-col min-h-[400px]">
-              <h2 className="text-2xl mb-4" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em', color: '#C9A84C' }}>
+            <div ref={resultRef} className="glass-card rounded-2xl p-6 flex flex-col min-h-[400px]">
+              <h2 className="text-2xl mb-4 gold-gradient"
+                style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
                 RAPPORT D&apos;ANALYSE
               </h2>
 
               {analysisLoading && (
                 <div className="flex-1 flex items-center justify-center">
                   <div className="text-center">
-                    <div className="w-16 h-16 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-[#C9A84C] font-semibold" style={{ fontFamily: "'Rajdhani', sans-serif" }}>L&apos;IA analyse le match...</p>
-                    <p className="text-gray-500 text-sm mt-1" style={{ fontFamily: "'Rajdhani', sans-serif" }}>20 à 30 secondes</p>
+                    <div className="w-14 h-14 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+                    <p className="text-[#C9A84C] text-sm font-semibold">L&apos;IA analyse le match...</p>
+                    <p className="text-white/25 text-xs mt-1">20 à 30 secondes</p>
                   </div>
                 </div>
               )}
 
               {!analysisLoading && result && (
                 <div className="flex-1 overflow-y-auto">
-                  <div className="analysis-output text-gray-200 text-sm leading-relaxed">
-                    {result.split('\n').map((line, i) => {
-                      if (/^\d+\.\s/.test(line) || /^[A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ\s]+\s*:/.test(line)) {
-                        return <p key={i} className="font-bold mt-4 mb-1" style={{ color: '#C9A84C' }}>{line}</p>
-                      }
-                      if (line.startsWith('- ') || line.startsWith('• ')) return <p key={i} className="ml-4 text-gray-300">{line}</p>
-                      if (line.trim() === '') return <br key={i} />
-                      return <p key={i}>{line}</p>
-                    })}
-                  </div>
+                  <AnalysisReport result={result} homeTeam={homeTeam} awayTeam={awayTeam}
+                    competition={competition} matchDate={matchDate} />
                 </div>
               )}
 
               {!analysisLoading && !result && (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center text-gray-600">
-                    <div className="text-5xl mb-4 opacity-30">⚡</div>
-                    <p style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                  <div className="text-center text-white/20">
+                    <div className="text-5xl mb-4 opacity-20">⚡</div>
+                    <p className="text-sm">
                       {subscription ? 'Remplissez le formulaire et lancez une analyse' : 'Abonnez-vous pour accéder aux analyses'}
                     </p>
                   </div>
@@ -444,58 +430,55 @@ function DashboardContent() {
           </div>
         )}
 
+        {/* ── History tab ── */}
         {activeTab === 'history' && (
           <div>
-            <h2 className="text-2xl mb-6" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em', color: '#C9A84C' }}>
+            <h2 className="text-2xl mb-6 gold-gradient"
+              style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
               HISTORIQUE DES ANALYSES
             </h2>
 
             {analyses.length === 0 ? (
-              <div className="card-dark rounded-2xl p-12 text-center text-gray-600">
-                <div className="text-4xl mb-4 opacity-30">📊</div>
-                <p style={{ fontFamily: "'Rajdhani', sans-serif" }}>Aucune analyse réalisée pour le moment</p>
+              <div className="glass-card rounded-2xl p-12 text-center text-white/20">
+                <div className="text-4xl mb-4 opacity-20">📊</div>
+                <p className="text-sm">Aucune analyse réalisée pour le moment</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {analyses.map(a => {
                   const badge = getScoreBadge(a.result)
                   const isOpen = selectedAnalysis === a.id
                   return (
                     <button key={a.id} onClick={() => setSelectedAnalysis(isOpen ? null : a.id)}
-                      className="card-dark rounded-xl p-4 text-left w-full hover:border-[#C9A84C]/40 transition-all">
+                      className={`glass-card rounded-xl p-4 text-left w-full transition-all ${isOpen ? 'border-[#C9A84C]/35' : 'hover:border-[#C9A84C]/20'}`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-bold text-white" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                          <p className="font-semibold text-white text-sm">
                             {a.home_team} vs {a.away_team}
                           </p>
-                          <p className="text-gray-500 text-sm" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-                            {a.competition} · {formatDate(a.match_date)} · Analysé le {formatDate(a.created_at)}
+                          <p className="text-white/30 text-xs mt-0.5">
+                            {a.competition} · {formatDate(a.match_date)} · analysé le {formatDate(a.created_at)}
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
                           {badge && (
-                            <span className="px-2 py-1 rounded text-xs font-bold"
-                              style={{ color: badge.color, border: `1px solid ${badge.color}40`, fontFamily: "'Rajdhani', sans-serif" }}>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold"
+                              style={{ color: badge.color, border: `1px solid ${badge.color}35` }}>
                               {badge.label}
                             </span>
                           )}
-                          <span className="text-[#C9A84C] text-xs px-2 py-1 bg-white/5 rounded" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+                          <span className="text-[#C9A84C] text-[10px] px-2 py-0.5 bg-white/[0.04] rounded border border-white/8">
                             {a.sport}
                           </span>
-                          <span className="text-gray-500 text-xs">{isOpen ? '▲' : '▼'}</span>
+                          <span className="text-white/25 text-xs">{isOpen ? '▲' : '▼'}</span>
                         </div>
                       </div>
 
                       {isOpen && (
-                        <div className="mt-4 pt-4 border-t border-white/5 analysis-output text-gray-300 text-sm text-left">
-                          {a.result.split('\n').map((line, i) => {
-                            if (/^\d+\.\s/.test(line) || /^[A-ZÀÂÆÇÉÈÊËÎÏÔŒÙÛÜ\s]+\s*:/.test(line)) {
-                              return <p key={i} className="font-bold mt-4 mb-1" style={{ color: '#C9A84C' }}>{line}</p>
-                            }
-                            if (line.startsWith('- ') || line.startsWith('• ')) return <p key={i} className="ml-4">{line}</p>
-                            if (line.trim() === '') return <br key={i} />
-                            return <p key={i}>{line}</p>
-                          })}
+                        <div className="mt-4 pt-4 border-t border-white/[0.06] text-left"
+                          onClick={e => e.stopPropagation()}>
+                          <AnalysisReport result={a.result} homeTeam={a.home_team} awayTeam={a.away_team}
+                            competition={a.competition} matchDate={a.match_date} />
                         </div>
                       )}
                     </button>
@@ -507,8 +490,8 @@ function DashboardContent() {
         )}
       </div>
 
-      <footer className="border-t border-white/5 px-6 py-4 text-center">
-        <p className="text-xs text-gray-600" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+      <footer className="border-t border-white/[0.05] px-6 py-4 text-center">
+        <p className="text-xs text-white/20">
           ⚠️ Les paris sportifs comportent des risques. Jouez de manière responsable. Interdit aux mineurs. Joueurs Info Service : 09 74 75 13 13
         </p>
       </footer>
@@ -519,8 +502,8 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <div className="text-[#C9A84C]" style={{ fontFamily: "'Rajdhani', sans-serif" }}>Chargement...</div>
+      <div className="min-h-screen bg-[#080808] flex items-center justify-center">
+        <div className="text-[#C9A84C] text-sm">Chargement...</div>
       </div>
     }>
       <DashboardContent />

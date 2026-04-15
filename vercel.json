@@ -1,6 +1,28 @@
 {
   "framework": "nextjs",
+  "functions": {
+    "src/app/api/analyze/route.ts": {
+      "maxDuration": 25
+    }
+  },
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "headers": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "oracle-bet-bot.vercel.app" }],
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "oracle-bet.fr" }],
+      "destination": "https://www.oracle-bet.fr/:path*",
+      "permanent": true
+    }
+  ]
 }

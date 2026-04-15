@@ -26,24 +26,18 @@ function PlanCard({
   const isBusy = isLoading === planId
 
   return (
-    <div
-      className={`relative card-dark rounded-2xl p-6 md:p-8 flex flex-col transition-all duration-300 ${
-        plan.badge === 'POPULAIRE'
-          ? 'border-[#C9A84C] gold-glow scale-[1.02]'
-          : plan.badge === 'ILLIMITÉ'
-          ? 'border-[#AAFF00]/40'
-          : 'border-white/10'
-      }`}
-    >
+    <div className="relative card-dark rounded-2xl p-6 md:p-8 flex flex-col transition-all duration-300 border-[#C9A84C] gold-glow">
+      {/* Top glow line */}
+      <div
+        className="absolute top-0 left-0 right-0 h-px rounded-t-2xl"
+        style={{ background: "linear-gradient(90deg, transparent, #C9A84C, transparent)" }}
+      />
+
       {/* Badge */}
       {plan.badge && (
         <div
           className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold tracking-widest"
-          style={{
-            backgroundColor: plan.badge === 'POPULAIRE' ? '#C9A84C' : '#AAFF00',
-            color: '#0A0A0A',
-            fontFamily: "'Rajdhani', sans-serif",
-          }}
+          style={{ backgroundColor: '#C9A84C', color: '#0A0A0A', fontFamily: "'Rajdhani', sans-serif" }}
         >
           {plan.badge}
         </div>
@@ -90,13 +84,8 @@ function PlanCard({
           className="w-full py-3.5 rounded-xl text-sm font-bold tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{
             fontFamily: "'Rajdhani', sans-serif",
-            background: plan.badge === 'POPULAIRE'
-              ? 'linear-gradient(135deg, #C9A84C, #F0D080)'
-              : plan.badge === 'ILLIMITÉ'
-              ? 'linear-gradient(135deg, #AAFF00, #88DD00)'
-              : 'rgba(255,255,255,0.08)',
-            color: plan.badge ? '#0A0A0A' : '#FFFFFF',
-            border: plan.badge ? 'none' : '1px solid rgba(255,255,255,0.15)',
+            background: 'linear-gradient(135deg, #C9A84C, #F0D080)',
+            color: '#0A0A0A',
           }}
         >
           {isBusy ? 'REDIRECTION...' : 'CHOISIR CE PLAN'}
@@ -190,31 +179,28 @@ function AbonnementContent() {
 
         {/* Title */}
         <div className="text-center mb-12">
-          <span className="inline-block px-4 py-1.5 rounded-full border border-[#AAFF00]/40 text-[#AAFF00] text-xs font-semibold tracking-widest mb-4"
+          <span className="inline-block px-4 py-1.5 rounded-full border border-[#C9A84C]/40 text-[#C9A84C] text-xs font-semibold tracking-widest mb-4"
             style={{ fontFamily: "'Rajdhani', sans-serif" }}>
-            CHOISISSEZ VOTRE PLAN
+            PLAN GOLD
           </span>
           <h1 className="text-4xl md:text-6xl mb-4" style={{ fontFamily: "'Bebas Neue', sans-serif", letterSpacing: '0.05em' }}>
-            ANALYSES IA POUR
+            ANALYSES DOUBLE IA
             <br />
-            <span style={{ color: '#C9A84C' }}>TOUS LES BUDGETS</span>
+            <span style={{ color: '#C9A84C' }}>CLAUDE + DEEPSEEK</span>
           </h1>
           <p className="text-gray-400 text-lg max-w-xl mx-auto" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
             Sans engagement · Résiliable à tout moment · Paiement sécurisé Stripe
           </p>
         </div>
 
-        {/* 3 Plan cards */}
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          {(['starter', 'standard', 'premium'] as PlanId[]).map(planId => (
-            <PlanCard
-              key={planId}
-              planId={planId}
-              isLoading={isLoading}
-              currentPlan={currentPlan}
-              onSubscribe={handleSubscribe}
-            />
-          ))}
+        {/* Single Gold plan card */}
+        <div className="max-w-md mx-auto">
+          <PlanCard
+            planId="gold"
+            isLoading={isLoading}
+            currentPlan={currentPlan}
+            onSubscribe={handleSubscribe}
+          />
         </div>
 
         {/* Comparison note */}
