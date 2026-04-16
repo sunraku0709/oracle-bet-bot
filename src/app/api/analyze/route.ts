@@ -213,7 +213,10 @@ Regles :
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
           max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [
+            { role: 'user', content: prompt },
+            { role: 'assistant', content: '{' },
+          ],
         }),
       }),
     ])
@@ -234,7 +237,7 @@ Regles :
     ])
 
     const deepseekAnalysis: string = deepseekData.choices?.[0]?.message?.content ?? ''
-    const claudeAnalysis: string = claudeData.content?.[0]?.text ?? ''
+    const claudeAnalysis: string = '{' + (claudeData.content?.[0]?.text ?? '')
 
     if (!deepseekAnalysis || !claudeAnalysis) {
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
