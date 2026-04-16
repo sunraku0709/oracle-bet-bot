@@ -239,12 +239,76 @@ Regles :
     const deepseekAnalysis: string = deepseekData.choices?.[0]?.message?.content ?? ''
     const claudeAnalysis: string = '{' + (claudeData.content?.[0]?.text ?? '')
 
-    if (!deepseekAnalysis || !claudeAnalysis) {
-      return NextResponse.json({ error: "L'IA n'a pas retourné de résultat" }, { status: 500, headers: CORS_HEADERS })
+    // ── Parse & merge both analyses into a single report ──────────────────────
+
+    type AP = {
+      classification: 'GOLD' | 'SILVER' | 'NO BET'
+      score: number
+      probabilities: {
+        home: { pct: number; odds: string | null }
+        draw: { pct: number; odds: string | null }
+        away: { pct: number; odds: string | null }
+      }
+      sections: { n: number; title: string; content: string }[]
+      verdict: {
+        bet: string; odds: string | null; edge_pct: number | null
+        value_bet: boolean; top_bets: string[]
+      }
     }
 
-    // Store both analyses together; frontend renders them side by side
-    const result = JSON.stringify({ mode: 'dual', deepseek: deepseekAnalysis, claude: claudeAnalysis })
+    const parseAP = (text: string): AP | null => {
+      try {
+        const first = text.indexOf('{')
+        const last = text.lastIndexOf('}')
+        if (first === -1 || last <= first) return null
+        const d = JSON.parse(text.slice(first, last + 1)) as AP
+        if (!d.classification || !Array.isArray(d.sections) || !d.verdict) return null
+        return d
+      } catch { return null }
+    }
+
+    const a = parseAP(deepseekAnalysis)
+    const b = parseAP(claudeAnalysis)
+
+    if (!a && !b) {
+      return NextResponse.json({ error: "L'IA n'a pas retourné de résultat valide" }, { status: 500, headers: CORS_HEADERS })
+    }
+
+    let merged: AP
+    if (a && b) {
+      const primary = a.score >= b.score ? a : b
+      const secondary = primary === a ? b : a
+      const avgScore = Math.round((a.score + b.score) / 2)
+      const homeAvg = Math.round((a.probabilities.home.pct + b.probabilities.home.pct) / 2)
+      const drawAvg = Math.round((a.probabilities.draw.pct + b.probabilities.draw.pct) / 2)
+      const awayAvg = 100 - homeAvg - drawAvg
+      const bets = [...primary.verdict.top_bets]
+      for (const bet of secondary.verdict.top_bets) {
+        if (bets.length < 5 && !bets.some(x => x.toLowerCase() === bet.toLowerCase())) bets.push(bet)
+      }
+      merged = {
+        classification: avgScore >= 75 ? 'GOLD' : avgScore >= 65 ? 'SILVER' : 'NO BET',
+        score: avgScore,
+        probabilities: {
+          home: { pct: homeAvg, odds: primary.probabilities.home.odds },
+          draw: { pct: drawAvg, odds: primary.probabilities.draw.odds },
+          away: { pct: awayAvg, odds: primary.probabilities.away.odds },
+        },
+        sections: primary.sections,
+        verdict: {
+          ...primary.verdict,
+          edge_pct: a.verdict.edge_pct != null && b.verdict.edge_pct != null
+            ? Math.round((a.verdict.edge_pct + b.verdict.edge_pct) / 2)
+            : primary.verdict.edge_pct,
+          value_bet: a.verdict.value_bet || b.verdict.value_bet,
+          top_bets: bets,
+        },
+      }
+    } else {
+      merged = (a ?? b)!
+    }
+
+    const result = JSON.stringify(merged)
 
     const analysisRecord = {
       user_id: userId,

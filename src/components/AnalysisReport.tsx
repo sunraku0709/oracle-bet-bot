@@ -331,60 +331,19 @@ function SinglePane({ result, homeTeam, awayTeam, competition, matchDate }: Prop
   )
 }
 
-function DualAnalysisView({ deepseek, claude, homeTeam, awayTeam, competition, matchDate }: {
-  deepseek: string; claude: string; homeTeam?: string; awayTeam?: string; competition?: string; matchDate?: string
-}) {
-  const [tab, setTab] = useState<'deepseek' | 'claude'>('deepseek')
-  const active = tab === 'deepseek' ? deepseek : claude
-  const label = tab === 'deepseek' ? 'DeepSeek' : 'Claude'
-
-  const tabStyle = (t: 'deepseek' | 'claude') => ({
-    flex: 1,
-    padding: '8px 0',
-    background: tab === t ? (t === 'deepseek' ? 'rgba(201,168,76,0.15)' : 'rgba(107,154,255,0.15)') : 'transparent',
-    border: 'none',
-    borderBottom: tab === t ? `2px solid ${t === 'deepseek' ? '#C9A84C' : '#6B9AFF'}` : '2px solid rgba(255,255,255,0.07)',
-    color: tab === t ? (t === 'deepseek' ? '#C9A84C' : '#6B9AFF') : 'rgba(255,255,255,0.35)',
-    cursor: 'pointer',
-    fontFamily: "'Rajdhani', sans-serif",
-    fontWeight: 700,
-    fontSize: 12,
-    letterSpacing: '0.08em',
-    transition: 'all 0.2s',
-  })
-
-  return (
-    <div>
-      {/* Tab selector */}
-      <div style={{ display: 'flex', marginBottom: 16, borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.07)' }}>
-        <button style={tabStyle('deepseek')} onClick={() => setTab('deepseek')}>⚡ DEEPSEEK</button>
-        <button style={tabStyle('claude')} onClick={() => setTab('claude')}>🔵 CLAUDE</button>
-      </div>
-
-      <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.25)', fontFamily: "'Rajdhani', sans-serif", letterSpacing: '0.08em', marginBottom: 12, textAlign: 'center' }}>
-        ANALYSE {label.toUpperCase()} — Double IA indépendante
-      </div>
-
-      <SinglePane result={active} homeTeam={homeTeam} awayTeam={awayTeam} competition={competition} matchDate={matchDate} />
-    </div>
-  )
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export default function AnalysisReport({ result, homeTeam, awayTeam, competition, matchDate }: Props) {
+  // Legacy: old history entries stored { mode:'dual', deepseek, claude }
+  // Pick the higher-scored one and render as a single pane — no tabs
   const dual = parseDualResult(result)
   if (dual) {
-    return (
-      <DualAnalysisView
-        deepseek={dual.deepseek}
-        claude={dual.claude}
-        homeTeam={homeTeam}
-        awayTeam={awayTeam}
-        competition={competition}
-        matchDate={matchDate}
-      />
-    )
+    const a = parseAnalysisResult(dual.deepseek)
+    const b = parseAnalysisResult(dual.claude)
+    const best = (a && b)
+      ? (a.score >= b.score ? dual.deepseek : dual.claude)
+      : (a ? dual.deepseek : dual.claude) ?? result
+    return <SinglePane result={best} homeTeam={homeTeam} awayTeam={awayTeam} competition={competition} matchDate={matchDate} />
   }
   return (
     <SinglePane
