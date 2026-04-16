@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
 import DashboardInstallCard from '@/components/DashboardInstallCard'
 import AnalysisReport, { parseAnalysisResult } from '@/components/AnalysisReport'
+import AnalysisLoader from '@/components/AnalysisLoader'
 
 type Analysis = {
   id: string
@@ -478,15 +479,7 @@ function DashboardContent() {
                 RAPPORT D&apos;ANALYSE
               </h2>
 
-              {analysisLoading && (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-14 h-14 border-2 border-[#C9A84C] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-                    <p className="text-[#C9A84C] text-sm font-semibold">L&apos;IA analyse le match...</p>
-                    <p className="text-white/25 text-xs mt-1">20 à 30 secondes</p>
-                  </div>
-                </div>
-              )}
+              {analysisLoading && <AnalysisLoader />}
 
               {!analysisLoading && result && (
                 <div className="flex-1 overflow-y-auto">
