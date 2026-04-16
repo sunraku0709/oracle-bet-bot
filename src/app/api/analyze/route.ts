@@ -200,6 +200,7 @@ Regles :
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
           max_tokens: 2048,
+          response_format: { type: 'json_object' },
         }),
       }),
       fetch('https://api.anthropic.com/v1/messages', {
