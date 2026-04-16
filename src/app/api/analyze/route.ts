@@ -199,7 +199,7 @@ Regles :
         body: JSON.stringify({
           model: 'deepseek-chat',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 800,
+          max_tokens: 2048,
         }),
       }),
       fetch('https://api.anthropic.com/v1/messages', {
@@ -211,7 +211,7 @@ Regles :
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-5',
-          max_tokens: 800,
+          max_tokens: 2048,
           messages: [{ role: 'user', content: prompt }],
         }),
       }),

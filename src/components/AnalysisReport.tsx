@@ -189,11 +189,10 @@ function LegacyReport({ result }: { result: string }) {
 
 export function parseAnalysisResult(result: string): AnalysisData | null {
   try {
-    const clean = result
-      .replace(/^```json\s*/m, '')
-      .replace(/^```\s*/m, '')
-      .replace(/```\s*$/m, '')
-      .trim()
+    const firstBrace = result.indexOf('{')
+    const lastBrace = result.lastIndexOf('}')
+    if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) return null
+    const clean = result.slice(firstBrace, lastBrace + 1)
     const data = JSON.parse(clean) as AnalysisData
     if (!data.classification || !data.sections || !data.verdict) return null
     return data
