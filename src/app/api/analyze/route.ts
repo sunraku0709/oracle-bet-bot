@@ -88,13 +88,6 @@ function buildConsensus(a: Record<string, unknown>, b: Record<string, unknown>):
   }
 }
 
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Timeout')), ms)),
-  ])
-}
-
 async function callClaudeFast(prompt: string): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -185,8 +178,8 @@ export async function POST(req: NextRequest) {
     const prompt = buildUltimateBetPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway, realTimeData })
 
     const [deepseekRes, claudeRes] = await Promise.allSettled([
-      withTimeout(callDeepSeekFast(prompt), 28_000),
-      withTimeout(callClaudeFast(prompt), 28_000),
+      callDeepSeekFast(prompt),
+      callClaudeFast(prompt),
     ])
 
     const deepseekText = deepseekRes.status === 'fulfilled' ? deepseekRes.value : ''

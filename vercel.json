@@ -2,7 +2,7 @@
   "framework": "nextjs",
   "functions": {
     "src/app/api/analyze/route.ts": {
-      "maxDuration": 25
+      "maxDuration": 60
     }
   },
   "buildCommand": "npm run build",
