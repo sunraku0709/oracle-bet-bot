@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getPlanById, getAnalysesLimit, PLANS, type PlanId } from '@/lib/plans'
-import { buildUltimateBetPrompt } from '@/lib/prompts/ultimate-bet-v2'
 import crypto from 'crypto'
 
 const CORS_HEADERS = {
@@ -52,21 +51,54 @@ function parseAnalysis(text: string): Record<string, unknown> | null {
   } catch { return null }
 }
 
-async function callDeepSeekFast(prompt: string): Promise<string> {
-  const res = await fetch('https://api.deepseek.com/chat/completions', {
+function buildFastPrompt(params: { homeTeam: string; awayTeam: string; sport: string; competition: string; matchDate: string; oddsHome?: string; oddsDraw?: string; oddsAway?: string }): string {
+  const odds = (params.oddsHome || params.oddsDraw || params.oddsAway)
+    ? `Cotes: Dom=${params.oddsHome ?? 'N/A'} Nul=${params.oddsDraw ?? 'N/A'} Ext=${params.oddsAway ?? 'N/A'}`
+    : 'Cotes non renseignees'
+  return `Analyste sportif quantitatif. Reponds UNIQUEMENT en JSON valide, sans texte autour.
+
+MATCH: ${params.homeTeam} vs ${params.awayTeam} | ${params.competition} | ${params.sport} | ${params.matchDate}
+${odds}
+
+REGLES:
+- classification: GOLD si score>=85 ET edge>15% ET cote>=1.40, SILVER si score>=70, sinon NO BET
+- verdict.bet: toujours rempli, jamais null
+
+JSON attendu (5 sections max):
+{
+  "classification": "GOLD"|"SILVER"|"NO BET",
+  "score": 0-100,
+  "sections": [
+    {"n":1,"title":"FORME & CONTEXTE","content":"<50 mots>"},
+    {"n":2,"title":"ANALYSE DES COTES","content":"<50 mots>"},
+    {"n":3,"title":"FORCES / FAIBLESSES","content":"<50 mots>"},
+    {"n":4,"title":"RED FLAGS","content":"<30 mots>"},
+    {"n":5,"title":"SYNTHESE","content":"<60 mots>"}
+  ],
+  "verdict": {
+    "bet": "<pari recommande, jamais vide>",
+    "odds": "<cote ou null>",
+    "edge_pct": <num ou null>,
+    "stake_suggestion": "0.5%"|"1%"|"2%"|"3%",
+    "top_bets": ["<pari1>","<pari2>","<pari3>"],
+    "reasoning_chain": "<2 phrases>"
+  }
+}`
+}
+
+async function callClaude(prompt: string): Promise<string> {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + process.env.DEEPSEEK_API_KEY },
+    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 3500,
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }, { role: 'assistant', content: '{' }],
     }),
   })
-  if (!res.ok) throw new Error(`DeepSeek ${res.status}`)
-  const data = await res.json() as { choices?: Array<{ message: { content: string } }> }
-  return data.choices?.[0]?.message?.content ?? ''
+  if (!res.ok) throw new Error(`Anthropic ${res.status}`)
+  const data = await res.json() as { content?: Array<{ text: string }> }
+  return '{' + (data.content?.[0]?.text ?? '')
 }
 
 export async function POST(req: NextRequest) {
@@ -117,18 +149,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as Record<string, string>
     const { homeTeam, awayTeam, sport, competition, matchDate, oddsHome, oddsDraw, oddsAway, realTimeData } = body
     if (!homeTeam?.trim() || !awayTeam?.trim() || !sport) return NextResponse.json({ error: 'Equipes et sport requis' }, { status: 400, headers: CORS_HEADERS })
-    if (!process.env.DEEPSEEK_API_KEY) return NextResponse.json({ error: 'API key manquante' }, { status: 500, headers: CORS_HEADERS })
+    if (!process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'API key manquante' }, { status: 500, headers: CORS_HEADERS })
 
     const key = cacheKey(body)
     const cached = cache.get(key)
     if (cached && cached.expires > Date.now()) return NextResponse.json({ result: JSON.stringify(cached.data), remaining: limit === null ? null : limit - usedToday, plan: planId, cached: true }, { headers: CORS_HEADERS })
 
     const dateStr = matchDate ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    const prompt = buildUltimateBetPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway, realTimeData })
+    const prompt = buildFastPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway })
 
-    const deepseekText = await callDeepSeekFast(prompt)
+    const claudeText = await callClaude(prompt)
 
-    let merged = parseAnalysis(deepseekText)
+    let merged = parseAnalysis(claudeText)
     if (!merged) return NextResponse.json({ error: 'IA non disponible, reessaie dans quelques secondes' }, { status: 503, headers: CORS_HEADERS })
 
     const mergedScore = merged.score as number
