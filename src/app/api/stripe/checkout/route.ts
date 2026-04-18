@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
-import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
+import { PLANS, getPlanById, COMBO_ADDON, type PlanId } from '@/lib/plans'
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,6 +36,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}))
     const planId: PlanId = getPlanById(body.plan)
     const plan = PLANS[planId]
+    const addons: string[] = Array.isArray(body.addons) ? body.addons : []
+    const withComboAddon = addons.includes('combo_daily') && planId === 'premium'
 
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL
       || req.headers.get('origin')
@@ -72,13 +74,37 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         }
 
+    const lineItems = [lineItem]
+
+    // Add combo addon line item if requested
+    if (withComboAddon) {
+      const comboPriceId = COMBO_ADDON.stripePriceId
+      if (comboPriceId) {
+        lineItems.push({ price: comboPriceId, quantity: 1 })
+      } else {
+        lineItems.push({
+          price_data: {
+            currency: 'eur',
+            product_data: {
+              name: `Oracle Bet — ${COMBO_ADDON.name}`,
+              description: COMBO_ADDON.description,
+            },
+            unit_amount: Math.round(COMBO_ADDON.price * 100),
+            recurring: { interval: 'month' as const },
+          },
+          quantity: 1,
+        })
+      }
+    }
+
     const sessionParams: Parameters<typeof stripe.checkout.sessions.create>[0] = {
       payment_method_types: ['card'],
       mode: 'subscription',
-      line_items: [lineItem],
+      line_items: lineItems,
       metadata: {
         user_id: user.id,
         plan: planId,
+        combo_addon: withComboAddon ? 'true' : 'false',
       },
       success_url: `${baseUrl}/dashboard?success=true&plan=${planId}`,
       cancel_url: `${baseUrl}/abonnement?canceled=true`,
