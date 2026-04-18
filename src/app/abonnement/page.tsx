@@ -201,6 +201,40 @@ function AbonnementContent() {
             currentPlan={currentPlan}
             onSubscribe={handleSubscribe}
           />
+
+          {/* Addon Combo - uniquement sur Premium */}
+          <div className="mt-4 pt-4 border-t border-yellow-500/30 card-dark rounded-2xl p-6">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-bold" style={{ fontFamily: "'Rajdhani', sans-serif" }}>+ Combo du jour</span>
+              <span className="text-yellow-500 font-bold">+8.99€/mois</span>
+            </div>
+            <p className="text-xs text-zinc-400 mb-3" style={{ fontFamily: "'Rajdhani', sans-serif" }}>
+              Un combiné ultra-safe par jour (2-3 matchs analysés par IA) · Réservé au plan Premium
+            </p>
+            {currentPlan === 'premium' && (
+              <button
+                onClick={async () => {
+                  setIsLoading('combo')
+                  try {
+                    const res = await fetch('/api/stripe/checkout', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ plan: 'premium', addons: ['combo_daily'] }),
+                    })
+                    const data = await res.json()
+                    if (data.url) window.location.href = data.url
+                    else alert(data.error || 'Erreur')
+                  } catch { alert('Erreur réseau') }
+                  finally { setIsLoading(null) }
+                }}
+                disabled={!!isLoading}
+                className="w-full py-2.5 rounded-xl text-sm font-bold tracking-widest transition-all disabled:opacity-50"
+                style={{ fontFamily: "'Rajdhani', sans-serif", background: 'linear-gradient(135deg, #C9A84C, #F0D080)', color: '#0A0A0A' }}
+              >
+                {isLoading === 'combo' ? 'REDIRECTION...' : 'ACTIVER LE COMBO'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Comparison note */}

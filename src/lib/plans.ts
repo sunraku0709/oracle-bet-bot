@@ -96,6 +96,16 @@ export const PLANS: Record<PlanId, {
   },
 }
 
+export const COMBO_ADDON = {
+  id: 'combo_daily',
+  name: 'Combo du jour',
+  description: 'Combine safe quotidien genere par IA (2-3 matches)',
+  price: 8.99,
+  currency: 'EUR',
+  requiredPlan: 'premium' as const,
+  stripePriceId: process.env.NEXT_PUBLIC_STRIPE_COMBO_PRICE_ID,
+}
+
 export function getPlanById(id: string | null | undefined): PlanId {
   if (id === 'starter' || id === 'standard' || id === 'premium') return id
   if (id === 'essential') return 'essential'
