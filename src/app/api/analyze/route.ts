@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getPlanById, getAnalysesLimit, PLANS, type PlanId } from '@/lib/plans'
+import { buildUltimateBetPrompt } from '@/lib/prompts/ultimate-bet-v2'
 import crypto from 'crypto'
 
 const CORS_HEADERS = {
@@ -51,40 +52,6 @@ function parseAnalysis(text: string): Record<string, unknown> | null {
   } catch { return null }
 }
 
-function buildFastPrompt(params: { homeTeam: string; awayTeam: string; sport: string; competition: string; matchDate: string; oddsHome?: string; oddsDraw?: string; oddsAway?: string }): string {
-  const odds = (params.oddsHome || params.oddsDraw || params.oddsAway)
-    ? `Cotes: Dom=${params.oddsHome ?? 'N/A'} Nul=${params.oddsDraw ?? 'N/A'} Ext=${params.oddsAway ?? 'N/A'}`
-    : 'Cotes non renseignees'
-  return `Analyste sportif quantitatif. Reponds UNIQUEMENT en JSON valide, sans texte autour.
-
-MATCH: ${params.homeTeam} vs ${params.awayTeam} | ${params.competition} | ${params.sport} | ${params.matchDate}
-${odds}
-
-REGLES:
-- classification: GOLD si score>=85 ET edge>15% ET cote>=1.40, SILVER si score>=70, sinon NO BET
-- verdict.bet: toujours rempli, jamais null
-
-JSON attendu (5 sections max):
-{
-  "classification": "GOLD"|"SILVER"|"NO BET",
-  "score": 0-100,
-  "sections": [
-    {"n":1,"title":"FORME & CONTEXTE","content":"<50 mots>"},
-    {"n":2,"title":"ANALYSE DES COTES","content":"<50 mots>"},
-    {"n":3,"title":"FORCES / FAIBLESSES","content":"<50 mots>"},
-    {"n":4,"title":"RED FLAGS","content":"<30 mots>"},
-    {"n":5,"title":"SYNTHESE","content":"<60 mots>"}
-  ],
-  "verdict": {
-    "bet": "<pari recommande, jamais vide>",
-    "odds": "<cote ou null>",
-    "edge_pct": <num ou null>,
-    "stake_suggestion": "0.5%"|"1%"|"2%"|"3%",
-    "top_bets": ["<pari1>","<pari2>","<pari3>"],
-    "reasoning_chain": "<2 phrases>"
-  }
-}`
-}
 
 async function callClaude(prompt: string): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -156,7 +123,7 @@ export async function POST(req: NextRequest) {
     if (cached && cached.expires > Date.now()) return NextResponse.json({ result: JSON.stringify(cached.data), remaining: limit === null ? null : limit - usedToday, plan: planId, cached: true }, { headers: CORS_HEADERS })
 
     const dateStr = matchDate ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-    const prompt = buildFastPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway })
+    const prompt = buildUltimateBetPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway, realTimeData })
 
     const claudeText = await callClaude(prompt)
 
