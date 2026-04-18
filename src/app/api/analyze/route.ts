@@ -4,6 +4,9 @@ import { getPlanById, getAnalysesLimit, PLANS, type PlanId } from '@/lib/plans'
 import { buildUltimateBetPrompt } from '@/lib/prompts/ultimate-bet-v2'
 import crypto from 'crypto'
 
+export const maxDuration = 60
+export const dynamic = 'force-dynamic'
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -184,20 +187,12 @@ export async function POST(req: NextRequest) {
     const dateStr = matchDate ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     const prompt = buildUltimateBetPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway, realTimeData })
 
-    const [deepseekRes, claudeRes] = await Promise.allSettled([
-      withTimeout(callDeepSeekFast(prompt), 28_000),
-      withTimeout(callClaudeFast(prompt), 28_000),
-    ])
+    const claudeText = await withTimeout(callClaudeFast(prompt), 50_000)
+    const a = parseAnalysis(claudeText)
 
-    const deepseekText = deepseekRes.status === 'fulfilled' ? deepseekRes.value : ''
-    const claudeText = claudeRes.status === 'fulfilled' ? claudeRes.value : ''
+    if (!a) return NextResponse.json({ error: 'IA non disponible, reessaie dans quelques secondes' }, { status: 503, headers: CORS_HEADERS })
 
-    const a = parseAnalysis(deepseekText)
-    const b = parseAnalysis(claudeText)
-
-    if (!a && !b) return NextResponse.json({ error: 'IA non disponible, reessaie dans quelques secondes' }, { status: 503, headers: CORS_HEADERS })
-
-    let merged = a && b ? buildConsensus(a, b) : (a ?? b)!
+    let merged = a
     const mergedScore = merged.score as number
     if (mergedScore < 70) merged.classification = 'NO BET'
     else if (mergedScore < 85) merged.classification = 'SILVER'
