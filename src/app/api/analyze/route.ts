@@ -52,57 +52,6 @@ function parseAnalysis(text: string): Record<string, unknown> | null {
   } catch { return null }
 }
 
-function buildConsensus(a: Record<string, unknown>, b: Record<string, unknown>): Record<string, unknown> {
-  const scoreA = a.score as number
-  const scoreB = b.score as number
-  const scoreDiff = Math.abs(scoreA - scoreB)
-  if (scoreDiff > 20) {
-    const lowest = scoreA < scoreB ? a : b
-    const lowestVerdict = lowest.verdict as Record<string, unknown>
-    return {
-      ...lowest,
-      classification: 'NO BET',
-      score: Math.min(scoreA, scoreB, 55),
-      confidence_level: 'LOW',
-      verdict: {
-        ...lowestVerdict,
-        bet: lowestVerdict.bet || 'Double chance favori - pari de repli safe',
-        stake_suggestion: '0.5%',
-        reasoning_chain: `Divergence ${scoreDiff} pts entre IA. Repli safe recommande.`,
-      },
-    }
-  }
-  const conservative = scoreA <= scoreB ? a : b
-  const conservativeVerdict = conservative.verdict as Record<string, unknown>
-  const aEst = a.probabilities_estimated as Record<string, number>
-  const bEst = b.probabilities_estimated as Record<string, number>
-  const homeAvg = Math.round((aEst.home_pct + bEst.home_pct) / 2)
-  const drawAvg = Math.round((aEst.draw_pct + bEst.draw_pct) / 2)
-  return {
-    ...conservative,
-    probabilities_estimated: {
-      home_pct: homeAvg, draw_pct: drawAvg, away_pct: 100 - homeAvg - drawAvg,
-      reliability_pct: Math.min(aEst.reliability_pct, bEst.reliability_pct),
-    },
-    verdict: { ...conservativeVerdict, reasoning_chain: `Consensus 2 IA (ecart ${scoreDiff}pts). ${conservativeVerdict.reasoning_chain}` },
-  }
-}
-
-async function callClaudeFast(prompt: string): Promise<string> {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': process.env.ANTHROPIC_API_KEY!, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 3500,
-      messages: [{ role: 'user', content: prompt }, { role: 'assistant', content: '{' }],
-    }),
-  })
-  if (!res.ok) throw new Error(`Anthropic ${res.status}`)
-  const data = await res.json() as { content?: Array<{ text: string }> }
-  return '{' + (data.content?.[0]?.text ?? '')
-}
-
 async function callDeepSeekFast(prompt: string): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -168,7 +117,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json() as Record<string, string>
     const { homeTeam, awayTeam, sport, competition, matchDate, oddsHome, oddsDraw, oddsAway, realTimeData } = body
     if (!homeTeam?.trim() || !awayTeam?.trim() || !sport) return NextResponse.json({ error: 'Equipes et sport requis' }, { status: 400, headers: CORS_HEADERS })
-    if (!process.env.DEEPSEEK_API_KEY || !process.env.ANTHROPIC_API_KEY) return NextResponse.json({ error: 'API keys manquantes' }, { status: 500, headers: CORS_HEADERS })
+    if (!process.env.DEEPSEEK_API_KEY) return NextResponse.json({ error: 'API key manquante' }, { status: 500, headers: CORS_HEADERS })
 
     const key = cacheKey(body)
     const cached = cache.get(key)
@@ -177,20 +126,11 @@ export async function POST(req: NextRequest) {
     const dateStr = matchDate ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
     const prompt = buildUltimateBetPrompt({ homeTeam, awayTeam, sport, competition: competition || sport, matchDate: dateStr, oddsHome, oddsDraw, oddsAway, realTimeData })
 
-    const [deepseekRes, claudeRes] = await Promise.allSettled([
-      callDeepSeekFast(prompt),
-      callClaudeFast(prompt),
-    ])
+    const deepseekText = await callDeepSeekFast(prompt)
 
-    const deepseekText = deepseekRes.status === 'fulfilled' ? deepseekRes.value : ''
-    const claudeText = claudeRes.status === 'fulfilled' ? claudeRes.value : ''
+    let merged = parseAnalysis(deepseekText)
+    if (!merged) return NextResponse.json({ error: 'IA non disponible, reessaie dans quelques secondes' }, { status: 503, headers: CORS_HEADERS })
 
-    const a = parseAnalysis(deepseekText)
-    const b = parseAnalysis(claudeText)
-
-    if (!a && !b) return NextResponse.json({ error: 'IA non disponible, reessaie dans quelques secondes' }, { status: 503, headers: CORS_HEADERS })
-
-    let merged = a && b ? buildConsensus(a, b) : (a ?? b)!
     const mergedScore = merged.score as number
     if (mergedScore < 70) merged.classification = 'NO BET'
     else if (mergedScore < 85) merged.classification = 'SILVER'
