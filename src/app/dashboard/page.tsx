@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PLANS, getPlanById, type PlanId } from '@/lib/plans'
 import DashboardInstallCard from '@/components/DashboardInstallCard'
-import AnalysisReport, { parseAnalysisResult } from '@/components/AnalysisReport'
+import AnalysisReport from '@/components/AnalysisReport'
 import AnalysisLoader from '@/components/AnalysisLoader'
 
 type Analysis = {
@@ -254,16 +254,6 @@ function DashboardContent() {
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
-
-  const getScoreBadge = (result: string) => {
-    const data = parseAnalysisResult(result)
-    const cls = data?.classification
-      ?? (result.includes('GOLD') ? 'GOLD' : result.includes('SILVER') ? 'SILVER' : result.includes('NO BET') ? 'NO BET' : null)
-    if (cls === 'GOLD')   return { label: 'GOLD',   color: '#C9A84C' }
-    if (cls === 'SILVER') return { label: 'SILVER', color: '#9CA3AF' }
-    if (cls === 'NO BET') return { label: 'NO BET', color: '#EF4444' }
-    return null
-  }
 
   const canAnalyze = () => {
     if (!subscription) return false
@@ -518,7 +508,6 @@ function DashboardContent() {
             ) : (
               <div className="space-y-2.5">
                 {analyses.map(a => {
-                  const badge = getScoreBadge(a.result)
                   const isOpen = selectedAnalysis === a.id
                   return (
                     <button key={a.id} onClick={() => setSelectedAnalysis(isOpen ? null : a.id)}
@@ -533,12 +522,6 @@ function DashboardContent() {
                           </p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          {badge && (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold"
-                              style={{ color: badge.color, border: `1px solid ${badge.color}35` }}>
-                              {badge.label}
-                            </span>
-                          )}
                           <span className="text-[#C9A84C] text-[10px] px-2 py-0.5 bg-white/[0.04] rounded border border-white/8">
                             {a.sport}
                           </span>

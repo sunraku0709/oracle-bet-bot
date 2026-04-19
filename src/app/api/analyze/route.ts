@@ -276,39 +276,11 @@ FORMAT :
     const data = await response.json()
     const analysisText: string = data.choices?.[0]?.message?.content ?? ''
 
-    type AP = {
-      classification: 'GOLD' | 'SILVER' | 'NO BET'
-      score: number
-      probabilities: {
-        home: { pct: number; odds: string | null }
-        draw: { pct: number; odds: string | null }
-        away: { pct: number; odds: string | null }
-      }
-      sections: { n: number; title: string; content: string }[]
-      verdict: {
-        bet: string; odds: string | null; edge_pct: number | null
-        value_bet: boolean; top_bets: string[]
-      }
-    }
-
-    const parseAP = (text: string): AP | null => {
-      try {
-        const first = text.indexOf('{')
-        const last = text.lastIndexOf('}')
-        if (first === -1 || last <= first) return null
-        const d = JSON.parse(text.slice(first, last + 1)) as AP
-        if (!d.classification || !Array.isArray(d.sections) || !d.verdict) return null
-        return d
-      } catch { return null }
-    }
-
-    const merged = parseAP(analysisText)
-
-    if (!merged) {
+    if (!analysisText.trim()) {
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat valide" }, { status: 500, headers: CORS_HEADERS })
     }
 
-    const result = JSON.stringify(merged)
+    const result = analysisText
 
     const analysisRecord = {
       user_id: userId,
@@ -337,7 +309,18 @@ FORMAT :
 
     const remaining = limit === null ? null : limit - usedToday - 1
 
-    return NextResponse.json({ result, remaining, plan: planId }, { headers: CORS_HEADERS })
+    return NextResponse.json(
+      {
+        result,
+        remaining,
+        plan: planId,
+        homeTeam: homeTeam.trim(),
+        awayTeam: awayTeam.trim(),
+        competition: competition || sport,
+        date: matchDate || new Date().toISOString().split('T')[0],
+      },
+      { headers: CORS_HEADERS },
+    )
   } catch (error: unknown) {
     console.error('Analyze error:', error)
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
