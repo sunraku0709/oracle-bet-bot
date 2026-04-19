@@ -185,23 +185,40 @@ Regles :
 - score = entier 0-100 (GOLD >= 75, SILVER 65-74, NO BET < 65)
 - probabilities : home.pct + draw.pct + away.pct = 100
 - odds dans probabilities : reprendre les cotes renseignees si disponibles, sinon null
-- sections[].content : minimum 80 mots, bullet points avec "- " prefix pour les elements, zéro supposition non justifiée
+- sections[].content : 40-70 mots maximum, bullet points concis avec "- " prefix, zéro supposition non justifiée
 - Si info absente : ecrire "Aucune source fiable disponible"
 - Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
 
-    const deepseekRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2048,
-        response_format: { type: 'json_object' },
-      }),
-    })
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 55000)
+
+    let deepseekRes: Response
+    try {
+      deepseekRes = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 1536,
+          response_format: { type: 'json_object' },
+        }),
+        signal: controller.signal,
+      })
+    } catch (err: unknown) {
+      clearTimeout(timeoutId)
+      if (err instanceof Error && err.name === 'AbortError') {
+        return NextResponse.json(
+          { error: "L'analyse a pris trop de temps. Réessayez dans un instant." },
+          { status: 504, headers: CORS_HEADERS },
+        )
+      }
+      throw err
+    }
+    clearTimeout(timeoutId)
 
     if (!deepseekRes.ok) {
       const errText = await deepseekRes.text()
