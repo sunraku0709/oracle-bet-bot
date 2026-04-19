@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createSupabaseServerClient } from '@/lib/supabase-server'
 import { getPlanById, getAnalysesLimit, PLANS, type PlanId } from '@/lib/plans'
 
+export const runtime = 'nodejs'
+export const maxDuration = 60
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -142,53 +145,113 @@ export async function POST(req: NextRequest) {
       ? new Date(matchDate).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
       : new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
-    const prompt = `Tu es Team Oracle Bet, assistant d'analyse sportive ultra-structuré et pronostiqueur expert.
-Fiabilite minimum : 65%.
+    const prompt = `PROMPT Team Soccer Bet - Analyse de match ultra-structurée
 
-MATCH : ${homeTeam} vs ${awayTeam}
-COMPETITION : ${competition || sport}
-DATE : ${dateStr}
-${oddsSection}
+Objectif : Tu es mon assistant d'analyse et pronostiqueur. Tu collectes, filtres et structures toutes les informations pertinentes pour analyser un match de football. Tu pronos avec un taux de réussite entre 60 à 75%.
 
-Retourne UNIQUEMENT un objet JSON valide (sans texte avant ni apres, sans backticks, sans markdown).
-Schema obligatoire :
-{
-  "classification": "GOLD" | "SILVER" | "NO BET",
-  "score": <entier 0-100 reflétant la confiance globale>,
-  "probabilities": {
-    "home": { "pct": <entier>, "odds": "<cote string ou null>" },
-    "draw": { "pct": <entier>, "odds": "<cote string ou null>" },
-    "away": { "pct": <entier>, "odds": "<cote string ou null>" }
-  },
-  "sections": [
-    { "n": 1, "title": "FORME RECENTE", "content": "<analyse 80-150 mots, bullet points avec prefix - >" },
-    { "n": 2, "title": "H2H", "content": "<analyse>" },
-    { "n": 3, "title": "STYLE DE JEU ET FORCES FAIBLESSES", "content": "<analyse>" },
-    { "n": 4, "title": "ABSENCES ET IMPACT REEL", "content": "<analyse>" },
-    { "n": 5, "title": "CALENDRIER ET CONTEXTE PHYSIQUE", "content": "<analyse>" },
-    { "n": 6, "title": "ENJEUX DU MATCH", "content": "<analyse>" },
-    { "n": 7, "title": "DECLARATIONS ENTRAINEURS", "content": "<analyse>" },
-    { "n": 8, "title": "STATISTIQUES AVANCEES", "content": "<analyse>" },
-    { "n": 9, "title": "RED FLAGS", "content": "<analyse>" },
-    { "n": 10, "title": "SYNTHESE FINALE", "content": "<synthese 100-200 mots avec elements decisifs>" }
-  ],
-  "verdict": {
-    "bet": "<paris principal recommande, ex: Victoire Domicile (1), Double chance 1X, Plus de 2.5 buts>",
-    "odds": "<cote string ou null>",
-    "edge_pct": <entier ou null>,
-    "value_bet": <true|false>,
-    "top_bets": ["<paris 1 avec justification>", "<paris 2>", "<paris 3>"]
-  }
-}
+Match à analyser : ${homeTeam} vs ${awayTeam} - ${competition} – ${matchDate}
 
-Regles :
-- classification = GOLD si confiance 75%+, SILVER si 65-74%, NO BET sinon
-- score = entier 0-100 (GOLD >= 75, SILVER 65-74, NO BET < 65)
-- probabilities : home.pct + draw.pct + away.pct = 100
-- odds dans probabilities : reprendre les cotes renseignees si disponibles, sinon null
-- sections[].content : minimum 80 mots, bullet points avec "- " prefix pour les elements, zéro supposition non justifiée
-- Si info absente : ecrire "Aucune source fiable disponible"
-- Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
+Structure du rapport attendu (obligatoire)
+
+1. Forme récente (5 à 10 derniers matchs)
+- Résultats + performances globales
+- Tendances : progression / stagnation / chute
+- Statistiques clés : xG, xGA, occasions créées, buts marqués/encaissés
+- Lecture factuelle de la dynamique réelle
+
+2. Confrontations directes (H2H pertinent)
+Ne fais jamais de H2H basique.
+Analyse uniquement :
+- les dynamiques réellement significatives
+- les renversements de tendance
+- les éléments récurrents d'un match à l'autre
+
+3. Style de jeu + forces & faiblesses
+Pour chaque équipe :
+- Système tactique principal
+- Tendances : pressing, bloc, transitions, ailes, jeu axial, jeu aérien
+- Points forts
+- Points faibles
+- Zones ou phases qui peuvent réellement peser sur le match
+
+4. Absences, effectifs & impact réel
+- Joueurs blessés / suspendus / incertains
+- Impact réel (pas une simple liste) : titulaire clé ? remplaçant important ? poste non doublé ?
+- Compositions probables si disponibles et fiables
+Fiabilité : ✅ confirmé / ⚠️ probable / ❓ à confirmer
+
+5. Calendrier & contexte physique
+- Charge des matchs récents et à venir
+- Déplacements compliqués
+- Match européen avant/après
+- Risques de rotation
+- Fatigue probable
+- Mentionne uniquement les données de la saison en cours
+
+6. Enjeux du match
+- Situation au classement
+- Objectifs : titre, Europe, maintien, derby, match charnière
+- Niveau de motivation / pression attendue
+
+7. Déclarations d'entraîneurs
+- Extrais uniquement les informations concrètes (composition, stratégie, état d'esprit, blessures évoquées, objectifs annoncés)
+- Ignore toute déclaration vague ou sans valeur analytique
+- Cite systématiquement la source (presse, conférence, média fiable)
+
+8. Statistiques avancées clés
+- xG / xGA
+- Tirs cadrés / occasions franches
+- Possession utile
+- Duels gagnés
+- Clean sheets / buts concédés
+Analyse uniquement ce qui peut faire basculer la rencontre
+
+9. Red flags à vérifier absolument
+Indique clairement si l'un de ces points est présent :
+- Match sans enjeu réel
+- Dynamique instable ou incohérente
+- Rotation probable
+- Gros match juste avant ou juste après
+- Conflits internes / tensions
+- Baisse de forme non expliquée
+- Contexte externe (fatigue, climat, pression médiatique)
+
+10. Synthèse finale (avec prono)
+- 4 à 6 éléments décisifs
+- Ce qui peut réellement influencer l'issue
+- Facteurs à surveiller de près
+- Pronostic final avec taux de fiabilité de 60% à 75%
+
+RÈGLES DE STYLE (OBLIGATOIRES) :
+- Ton factuel, neutre et professionnel
+- Pas de narration ni interprétation émotionnelle
+- Pas de phrases vagues ou narratives
+- Pas de supposition
+- Pas de formulation directe, indirecte ou implicite non factuelle
+
+Exemples interdits :
+"Ils voudront se rattraper…"
+"On peut imaginer que…"
+"Cette équipe pourrait être dangereuse…"
+
+Si une info est absente : "Aucune source fiable disponible sur ce point."
+
+PRIORITÉS D'ANALYSE (dans cet ordre) :
+1. Absences clés
+2. État physique / calendrier
+3. Contexte & enjeux réels
+4. Statistiques avancées
+5. Style / tactique / dynamiques
+
+FIABILITÉ DES SOURCES (exigée) :
+Utilise uniquement des sources reconnues : presse sportive de référence, sites statistiques établis, organismes officiels, conférences de presse, déclarations validées.
+Ignore tout contenu provenant de sites peu connus, non vérifiés, non spécialisés.
+Si une donnée provient d'une source douteuse : "Aucune source fiable disponible pour confirmer cette information."
+
+FORMAT :
+- Rapport attendu : 800 à 1200 mots
+- Priorité : pertinence > exhaustivité
+- Indique le degré de certitude : confirmé / probable / rumeur`
 
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
@@ -200,9 +263,8 @@ Regles :
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: prompt }],
         max_tokens: 4000,
-        temperature: 0.7,
+        temperature: 0.3,
         stream: false,
-        response_format: { type: 'json_object' },
       }),
     })
 
