@@ -124,13 +124,15 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (!process.env.DEEPSEEK_API_KEY) {
+    // Sanitize API key: strip non-ASCII characters that break ByteString headers
+    const apiKey = (process.env.DEEPSEEK_API_KEY || '').replace(/[^\x20-\x7E]/g, '').trim()
+
+    if (!apiKey) {
       return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
     }
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500, headers: CORS_HEADERS })
-    }
+    // TEMP debug: key length + first 8 chars (remove after verification)
+    console.log(`[analyze] DEEPSEEK_API_KEY length=${apiKey.length} prefix=${apiKey.slice(0, 8)}`)
 
     const oddsSection = (oddsHome || oddsDraw || oddsAway)
       ? `COTES EN TEMPS REEL (Bet365 | Unibet) : Domicile ${oddsHome || 'N/A'} / Nul ${oddsDraw || 'N/A'} / Extérieur ${oddsAway || 'N/A'}`
@@ -188,58 +190,29 @@ Regles :
 - Si info absente : ecrire "Aucune source fiable disponible"
 - Retourne UNIQUEMENT le JSON brut, sans introduction ni conclusion`
 
-    // Run both AI calls in parallel
-    const [deepseekRes, claudeRes] = await Promise.all([
-      fetch('https://api.deepseek.com/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + process.env.DEEPSEEK_API_KEY,
-        },
-        body: JSON.stringify({
-          model: 'deepseek-chat',
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: 2048,
-          response_format: { type: 'json_object' },
-        }),
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 4000,
+        temperature: 0.7,
+        stream: false,
+        response_format: { type: 'json_object' },
       }),
-      fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': process.env.ANTHROPIC_API_KEY!,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5',
-          max_tokens: 2048,
-          messages: [
-            { role: 'user', content: prompt },
-            { role: 'assistant', content: '{' },
-          ],
-        }),
-      }),
-    ])
+    })
 
-    if (!deepseekRes.ok) {
-      const errText = await deepseekRes.text()
-      throw new Error(`DeepSeek API error ${deepseekRes.status}: ${errText}`)
+    if (!response.ok) {
+      const errText = await response.text()
+      throw new Error(`DeepSeek API error ${response.status}: ${errText}`)
     }
 
-    if (!claudeRes.ok) {
-      const errText = await claudeRes.text()
-      throw new Error(`Anthropic API error ${claudeRes.status}: ${errText}`)
-    }
-
-    const [deepseekData, claudeData] = await Promise.all([
-      deepseekRes.json(),
-      claudeRes.json(),
-    ])
-
-    const deepseekAnalysis: string = deepseekData.choices?.[0]?.message?.content ?? ''
-    const claudeAnalysis: string = '{' + (claudeData.content?.[0]?.text ?? '')
-
-    // ── Parse & merge both analyses into a single report ──────────────────────
+    const data = await response.json()
+    const analysisText: string = data.choices?.[0]?.message?.content ?? ''
 
     type AP = {
       classification: 'GOLD' | 'SILVER' | 'NO BET'
@@ -267,45 +240,10 @@ Regles :
       } catch { return null }
     }
 
-    const a = parseAP(deepseekAnalysis)
-    const b = parseAP(claudeAnalysis)
+    const merged = parseAP(analysisText)
 
-    if (!a && !b) {
+    if (!merged) {
       return NextResponse.json({ error: "L'IA n'a pas retourné de résultat valide" }, { status: 500, headers: CORS_HEADERS })
-    }
-
-    let merged: AP
-    if (a && b) {
-      const primary = a.score >= b.score ? a : b
-      const secondary = primary === a ? b : a
-      const avgScore = Math.round((a.score + b.score) / 2)
-      const homeAvg = Math.round((a.probabilities.home.pct + b.probabilities.home.pct) / 2)
-      const drawAvg = Math.round((a.probabilities.draw.pct + b.probabilities.draw.pct) / 2)
-      const awayAvg = 100 - homeAvg - drawAvg
-      const bets = [...primary.verdict.top_bets]
-      for (const bet of secondary.verdict.top_bets) {
-        if (bets.length < 5 && !bets.some(x => x.toLowerCase() === bet.toLowerCase())) bets.push(bet)
-      }
-      merged = {
-        classification: avgScore >= 75 ? 'GOLD' : avgScore >= 65 ? 'SILVER' : 'NO BET',
-        score: avgScore,
-        probabilities: {
-          home: { pct: homeAvg, odds: primary.probabilities.home.odds },
-          draw: { pct: drawAvg, odds: primary.probabilities.draw.odds },
-          away: { pct: awayAvg, odds: primary.probabilities.away.odds },
-        },
-        sections: primary.sections,
-        verdict: {
-          ...primary.verdict,
-          edge_pct: a.verdict.edge_pct != null && b.verdict.edge_pct != null
-            ? Math.round((a.verdict.edge_pct + b.verdict.edge_pct) / 2)
-            : primary.verdict.edge_pct,
-          value_bet: a.verdict.value_bet || b.verdict.value_bet,
-          top_bets: bets,
-        },
-      }
-    } else {
-      merged = (a ?? b)!
     }
 
     const result = JSON.stringify(merged)
@@ -343,7 +281,7 @@ Regles :
     const msg = error instanceof Error ? error.message : 'Erreur inconnue'
     if (msg.includes('API_KEY') || msg.includes('API key')) {
       return NextResponse.json(
-        { error: 'Clé API invalide ou non configurée (DEEPSEEK_API_KEY / ANTHROPIC_API_KEY)' },
+        { error: 'Clé API invalide ou non configurée (DEEPSEEK_API_KEY)' },
         { status: 500, headers: CORS_HEADERS },
       )
     }
